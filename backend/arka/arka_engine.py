@@ -3428,6 +3428,14 @@ class ARKAEngine:
                 else:
                     log.info(f"  ⚡ 0DTE allowed post-2:30: conviction={_conv_score} ≥ 72")
 
+            # Stocks always use 1DTE minimum:
+            #   - 0DTE stock options have thin per-strike OI (vs SPY/QQQ with thousands)
+            #   - Gives the trade a full day to develop
+            #   - Avoids PDT same-day buy+sell on paper account
+            if is_stock(trade_sym) and _dte_days < 2:
+                _dte_days = 2
+                log.info(f"  📋 Stock swing: forcing 1DTE (stocks need next-day expiry for liquidity)")
+
             # _dte_days=1 → 0DTE (today), _dte_days=2 → 1DTE (tomorrow)
             # Set min expiry to match intent so the "soonest first" sort
             # doesn't accidentally grab today's contracts when we want 1DTE.
@@ -3544,17 +3552,19 @@ class ARKAEngine:
                             )
 
                     # ── Liquidity gate: OI, live bid, max spread ──────────────
-                    # Runs on the selected contract using the Polygon data already fetched above.
-                    # OI < 100: no meaningful market, fills will be at worst-case prices
+                    # OI threshold is ticker-aware:
+                    #   Index ETFs (SPY/QQQ/IWM): OI ≥ 100 — these have dense chains
+                    #   Stocks (AMZN/NVDA/AMD etc.): OI ≥ 25 — per-strike OI is naturally lower
                     # bid == 0: market maker not active on this contract
-                    # spread > 30%: you're giving up >15% immediately on entry + exit
+                    # spread > 30%: giving up >15% immediately on entry + exit
                     _lq_oi     = int(_pg_data.get("open_interest", 0) or 0)
                     _lq_bid    = float((_pg_data.get("last_quote") or {}).get("bid", 0) or 0)
                     _lq_ask    = float((_pg_data.get("last_quote") or {}).get("ask", 0) or 0)
                     _lq_spread = (_lq_ask - _lq_bid) / _lq_ask if _lq_ask > 0 else 1.0
-                    if _lq_oi < 100:
+                    _oi_min    = 25 if is_stock(trade_sym) else 100
+                    if _lq_oi < _oi_min:
                         log.warning(
-                            f"  ⛔ Liquidity gate: {contract_sym} OI={_lq_oi} < 100 — no open interest, skip"
+                            f"  ⛔ Liquidity gate: {contract_sym} OI={_lq_oi} < {_oi_min} — insufficient open interest, skip"
                         )
                         return
                     if _lq_bid <= 0:
@@ -3620,28 +3630,35 @@ class ARKAEngine:
                     )
                     return
 
-                # MAX per-contract premium — skip entirely if a single contract is too expensive
-                # Index 0DTE scalps: max $2.50/share ($250/contract keeps 2 contracts inside $500 per trade)
-                # Stock swings:      max $4.00/share ($400/contract — 1 contract max anyway)
+                # MAX per-contract premium — skip if contract is too expensive relative to stock price
+                # Index 0DTE scalps: max $2.50/share (fixed — SPY/QQQ OTM premiums are predictable)
+                # Stock swings:      max 4% of stock price — scales with the underlying
+                #   AMZN $261 → max $10.44  |  NVDA $120 → max $4.80  |  AMD $100 → max $4.00
                 _is_stock_entry  = is_stock(trade_sym)
-                _MAX_PX_INDEX    = 2.50   # $250/contract hard ceiling for index scalps
-                _MAX_PX_STOCK    = 4.00   # $400/contract hard ceiling for stock swings
+                _MAX_PX_INDEX    = 2.50
+                _MAX_PX_STOCK    = round(signal.get("price", 100) * 0.04, 2)  # 4% of stock price
                 _max_px          = _MAX_PX_STOCK if _is_stock_entry else _MAX_PX_INDEX
                 if _last_px > _max_px:
                     log.warning(
                         f"  ⛔ Cost gate: {contract_sym} ${_last_px:.2f}/share "
-                        f"> max ${_max_px:.2f} — too expensive, skip"
+                        f"> max ${_max_px:.2f} (4% of ${signal.get('price',0):.2f}) — too expensive, skip"
                     )
                     return
 
-                # MAX total trade spend — never commit more than 25% of bucket in one trade
-                _MAX_TRADE_SPEND = round(SCALP_BUDGET * 0.25, 0)   # $500 at $2K budget
+                # MAX total trade spend:
+                #   Index scalps: 25% of SCALP_BUDGET = $500 (cheap 0DTE OTM options)
+                #   Stock swings: 50% of SWING_BUDGET_CAP = $1000 (higher-priced stock options)
                 _real_cost = round(_last_px * 100, 2)
+                if _is_stock_entry:
+                    _MAX_TRADE_SPEND = round(SWING_BUDGET_CAP * 0.50, 0)  # $1000 for stocks
+                else:
+                    _MAX_TRADE_SPEND = round(SCALP_BUDGET * 0.25, 0)      # $500 for indexes
 
                 # Hard budget check with actual premium (not estimate)
-                if _real_cost > SCALP_BUDGET:
+                _budget_pool = SWING_BUDGET_CAP if _is_stock_entry else SCALP_BUDGET
+                if _real_cost > _budget_pool:
                     log.warning(f"  ⛔ Premium gate: actual cost ${_real_cost:.0f} "
-                                f"(${_last_px:.2f}/share) > ${SCALP_BUDGET:.0f} available budget — skip")
+                                f"(${_last_px:.2f}/share) > ${_budget_pool:.0f} available budget — skip")
                     return
 
                 # ── Open print size cap: 1 contract only during first 45 min ───

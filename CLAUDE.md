@@ -60,88 +60,48 @@ nohup python3 -m backend.arka.flow_scalper > logs/arka/flow_scalper.log 2>&1 &
 
 ## PENDING ITEMS — DO THESE IN ORDER
 
-### PRIORITY 1: GEX Gate (highest trading impact — do Monday morning)
-Full implementation guide is in `GEX_Implementation_Guide.docx`.
-Creates a GEX-aware conviction filter that blocks trades against dealer walls.
+### ✅ DONE: GEX Gate (Phases 1–5 + 7A complete)
+- `backend/arka/gex_state.py` — loads gex_latest_{ticker}.json with 10-min TTL
+- `backend/arka/gex_gate.py` — 6-rule conviction filter (walls, regime, zero gamma, cliff, bias ratio)
+- Wired into `arka_engine.py` after conviction, before order placement
+- Smart DTE: NEGATIVE_GAMMA → 0DTE index / 1DTE stocks; POSITIVE_GAMMA → 1DTE
+- GEX state writer in `gex_calculator.py` after each compute
+- Phase 7A: regime_call (SHORT_THE_POPS/BUY_THE_DIPS/FOLLOW_MOMENTUM), directional bias ratio, acceleration, expected move
 
-**Phase 1 — Create `backend/arka/gex_state.py`:**
-- `load_gex_state(ticker)` — loads `logs/gex/gex_latest_{ticker}.json`, enforces 10-min TTL
-- Returns: regime, zero_gamma, call_wall, put_wall, net_gex, spot, pct_to_call_wall, pct_to_put_wall, above_zero_gamma, cliff_today
-- Returns None if file missing or stale
+### ✅ DONE: RSI Divergence Scanner
+- `backend/chakra/divergence_scanner.py` — runs every 5 min via flow_monitor
+- Scans indexes + top 12 watchlist tickers for bullish/bearish/hidden divergence on 5-min bars
+- Posts Discord embeds with 60-min per-ticker cooldown
+- Wired into ARKA conviction scoring: aligned divergence +12–20pts, opposing -8pts
 
-**Phase 2 — Create `backend/arka/gex_gate.py`:**
-6 rules:
-1. Block CALLs within 0.4% of call wall
-2. Block PUTs within 0.4% of put wall
-3. Penalize -12 conviction if within 1.0% of respective wall
-4. Penalize -8 in POSITIVE_GAMMA when chasing momentum
-5. Boost +10 in NEGATIVE_GAMMA when direction aligned
-6. Boost +8 when within $1.50 of zero gamma (explosive zone)
-7. Boost +6 when GEX cliff expiring today
+### ✅ DONE: Swing Gate Fixes (Apr 29 2026)
+- OI gate: 100 → 25 for stocks (index-centric threshold was blocking all stock options)
+- DTE: stocks always use 1DTE minimum (0DTE stock OI is near zero per-strike)
+- Cost gate: fixed $4/share → 4% of stock price (scales with high-priced stocks like AMZN)
+- Trade cap: $500 → $1,000 for stocks (uses swing budget pool, not 0DTE scalp budget)
+- Flat gate: 0.30% → 0.15% SPY threshold; bypassed if flow signal confidence ≥ 80%
 
-**Phase 3 — Wire into `arka_engine.py`:**
-- After conviction calculation, before order placement
-- If gate blocks: log reason, add to scan feed, skip signal
-- If gate adjusts: update conviction, log adjustment
+### ✅ DONE: PDT Alert System
+- Discord alert fires when Alpaca returns 403 PDT on both entry and exit
+- Alerts user to manually close position via Alpaca dashboard
+- Stocks use 1DTE to avoid PDT (buy today, sell tomorrow = different days)
 
-**Phase 4 — Smart DTE selection:**
-- `select_optimal_dte(ticker, direction)` in arka_engine.py
-- 0DTE negative gamma → prefer 0DTE (fast mover)
-- 0DTE positive gamma → prefer 1DTE (avoid pinning)
-
-**Phase 5 — GEX state writer:**
-- After each GEX compute in `gex_calculator.py`, write `logs/gex/gex_latest_{ticker}.json`
-- Include: regime, zero_gamma, call_wall, put_wall, net_gex, spot, cliff data, ts (unix timestamp)
-
-### PRIORITY 2: GEX Intraday Timeline Logging
+### PRIORITY 1: GEX Intraday Timeline Logging
 - Add `snapshot_gex_intraday(gex_result, ticker)` to `gex_calculator.py`
 - Appends each GEX computation to `logs/gex/gex_intraday_{ticker}_{date}.json`
 - Add API endpoint: `GET /api/options/gex/intraday?ticker=SPY`
 - Returns array: [{ts, datetime, zero_gamma, call_wall, put_wall, net_gex, regime, spot}]
 - This fixes the Intraday GEX Timeline tab in Analysis → GEX
 
-### PRIORITY 3: GEX Tab Dashboard Fixes
-**Expiration Breakdown:**
-- Currently shows "0 expirations" after market close
-- After-hours fix: use tomorrow as exp_start (already partially patched)
-- The real fix: endpoint at `/api/options/gex/expiry-breakdown` needs to work with Polygon snapshot data during market hours — test Monday
-
-**Term Structure:**
-- Already rendering correctly with George-style bars
-- Cliff detection working
-- Will show full data (15-25 bars) during market hours Monday
-
-**Range Bound Levels (GEX tab — new section):**
+### PRIORITY 2: GEX Tab Range Bound Levels
 Add prominent range display at top of GEX tab showing:
 - Call Wall: $XXX.XX (X.XX% away) — green
 - Zero Gamma: $XXX.XX (ABOVE/BELOW) — yellow
-- Put Wall: $XXX.XX (X.XX% away) — red  
+- Put Wall: $XXX.XX (X.XX% away) — red
 - GEX Regime badge (POSITIVE/NEGATIVE/LOW_VOL)
 - Cliff alert banner when cliff_today == true
 
-### PRIORITY 4: Discord After-Hours Fix
-**Issue:** Swing extreme Discord alerts still firing after market close
-**Location:** `backend/chakra/flow_monitor.py`
-**Fix needed:** The `post_dark_pool_alert` and `post_uoa_alert` after-hours gate exists but may not cover all posting paths. Check every place that calls a Discord webhook in flow_monitor.py and ensure the market hours gate is applied.
-**Gate logic:**
-```python
-from zoneinfo import ZoneInfo
-_et = datetime.now(ZoneInfo("America/New_York"))
-_market_open = (_et.weekday() < 5 and
-                ((_et.hour == 9 and _et.minute >= 30) or _et.hour > 9) and
-                _et.hour < 16)
-_ALWAYS_ON = {"SPY", "QQQ", "SPX"}
-if not _market_open and ticker.upper() not in _ALWAYS_ON:
-    return False
-```
-
-### PRIORITY 5: Conviction Score Fix (Swing Screener)
-**Issue:** All swing candidates show score=60 (the minimum)
-**Root cause:** Scoring was rebalanced to start at 50, but the watchlist JSON was saved before the fix. The new scoring takes effect Monday after `--premarket` scan runs.
-**Verify Monday morning:** After premarket scan, check `logs/chakra/watchlist_latest.json` — scores should range from 50-95, not all 60.
-**If still all 60:** Check `backend/arka/arka_swings.py` around line 300 — `score = 50` should be the starting point, not `score = 0`.
-
-### PRIORITY 6: Performance Page Display Update
+### PRIORITY 3: Performance Page Display Update
 **Issue:** Performance page shows raw trade data but lacks:
 - Cumulative P&L chart over time
 - Win/loss breakdown by ticker
@@ -151,14 +111,13 @@ if not _market_open and ticker.upper() not in _ALWAYS_ON:
 **Data source:** `GET /api/arka/performance` (already fixed to pull from Alpaca)
 **Goal:** George-style performance cards with charts
 
-### PRIORITY 7: Dashboard Home — George-Style Redesign
+### PRIORITY 4: Dashboard Home — George-Style Redesign
 **This is the biggest effort — do last**
 **Goal:** Redesign ARJUN → Signals tab to match George's layout:
 - Top row: Market regime bar (SPX price, VIX, regime label)
 - Index cards row: SPX, SPY, QQQ, IWM, DIA with mini sparklines
 - Below: ARJUN signal cards in grid (already George-style, mostly done)
 - Right sidebar: CHAKRA Signals feed (already exists)
-**Reference:** George dashboard screenshots in previous chat sessions
 
 ---
 

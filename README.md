@@ -582,13 +582,19 @@ logs/
 ### PDT Rule
 Alpaca paper account requires $25K equity to day trade (buy and sell same contract same day). When equity drops below $25K, all same-day position closes return HTTP 403. The system now sends a Discord alert when this happens so you can manually close via the Alpaca dashboard.
 
-Workaround: Use 1DTE contracts so the buy and sell occur on different calendar days.
+Workaround: Stocks always use 1DTE contracts (buy today, sell tomorrow = no day trade). Index 0DTE trades are still subject to PDT if the account drops below $25K.
 
-### Pending from CLAUDE.md
+### Swing Trade Gate Tuning (fixed Apr 29 2026)
+Three gates were miscalibrated for stock options (all had index-centric thresholds):
+- **OI gate**: was 100 for all tickers → now 25 for stocks, 100 for indexes
+- **DTE selection**: 0DTE was chosen for NEGATIVE_GAMMA regime → stocks always use 1DTE minimum
+- **Cost gate**: fixed $4/share max and $500 trade cap → stocks now use 4% of stock price max and $1,000 trade cap
+- **Flat market gate**: threshold lowered from 0.30% to 0.15% SPY move; bypassed entirely when flow signal confidence ≥ 80%
+
+### Pending
 1. **GEX Intraday Timeline** — `/api/options/gex/intraday` endpoint (partially implemented, not wired to UI)
 2. **Performance Page Charts** — cumulative P&L chart, win/loss by ticker, daily bar chart
 3. **GEX Tab Range Bound Levels** — call wall / zero gamma / put wall levels at top of GEX tab
-4. **Conviction Score after premarket scan** — scores should range 50–95 (verify Monday morning)
 
 ---
 
