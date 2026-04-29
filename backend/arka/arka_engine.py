@@ -2687,6 +2687,73 @@ class ARKAEngine:
             except Exception as e:
                 log.warning(f"  👁  Monitor loop error: {e}")
 
+    async def _gex_refresh_loop(self):
+        """
+        Background loop: refresh GEX state files for all tickers in scan universe every 15 min.
+        Keeps gex_latest_{ticker}.json fresh so regime change detection works for stocks.
+        Without this, stock GEX files go stale after the first scan and regime flips go undetected.
+        """
+        _GEX_REFRESH_INTERVAL = 900  # 15 minutes
+        await asyncio.sleep(60)  # stagger from startup
+        while True:
+            try:
+                if not is_market_open():
+                    await asyncio.sleep(_GEX_REFRESH_INTERVAL)
+                    continue
+
+                # Build current universe
+                try:
+                    from backend.arka.dynamic_universe import get_universe as _get_univ
+                    _univ = _get_univ()
+                except Exception:
+                    _univ = list(TICKERS)
+
+                from backend.arjun.agents.gex_calculator import get_gex_for_ticker, write_gex_state
+                import pathlib as _pl
+
+                refreshed, skipped = 0, 0
+                for _tk in _univ:
+                    try:
+                        # Only refresh if file is older than 10 min (TTL threshold)
+                        _gex_path = _pl.Path(f"logs/gex/gex_latest_{_tk.upper()}.json")
+                        if _gex_path.exists():
+                            _age = time.time() - _gex_path.stat().st_mtime
+                            if _age < 600:   # fresh enough
+                                skipped += 1
+                                continue
+
+                        # Fetch live spot price via Polygon
+                        async with httpx.AsyncClient(timeout=6) as _hc:
+                            _sr = await _hc.get(
+                                f"{POLYGON_BASE}/v2/snapshot/locale/us/markets/stocks/tickers/{_tk}",
+                                params={"apiKey": POLYGON_KEY}
+                            )
+                        _spot = float(_sr.json().get("ticker", {}).get("day", {}).get("c", 0) or 0)
+                        if _spot <= 0:
+                            continue
+
+                        # Run GEX in thread executor (sync call)
+                        loop = asyncio.get_event_loop()
+                        _gex_result = await loop.run_in_executor(
+                            None, get_gex_for_ticker, _tk, _spot
+                        )
+                        if _gex_result and _gex_result.get("regime") not in (None, "UNKNOWN"):
+                            write_gex_state(_tk, _gex_result)
+                            refreshed += 1
+                        await asyncio.sleep(0.5)   # rate limit
+                    except Exception as _te:
+                        log.debug(f"  [GEX refresh] {_tk}: {_te}")
+
+                if refreshed:
+                    log.info(f"  📐 GEX refresh: {refreshed} updated, {skipped} fresh, {len(_univ)-refreshed-skipped} skipped")
+
+            except asyncio.CancelledError:
+                break
+            except Exception as _e:
+                log.debug(f"  [GEX refresh loop] {_e}")
+
+            await asyncio.sleep(_GEX_REFRESH_INTERVAL)
+
     def _check_vix_spike(self) -> bool:
         """Returns True if VIX has spiked >15% intraday (PANIC regime)."""
         from pathlib import Path as _P
@@ -2924,6 +2991,25 @@ class ARKAEngine:
                                 _new_r == "NEGATIVE_GAMMA" and cv["should_trade"]):
                             cv["prefer_0dte"] = True
                             log.info(f"  🔄 Regime flip → forcing 0DTE preference for {ticker}")
+                        # ── Fire Discord alert for ALL regime changes (regardless of trade) ──
+                        if DISCORD_ENABLED:
+                            try:
+                                asyncio.ensure_future(
+                                    post_system_alert(
+                                        f"GEX Regime Flip — {ticker}",
+                                        f"**{_flip.get('old_label','?')} → {_flip.get('new_label','?')}** ({_sev})\n\n"
+                                        f"{_flip.get('description','')}\n\n"
+                                        f"**Regime call:** {_flip.get('regime_call','?')} | "
+                                        f"**Dealer bias:** {_flip.get('dealer_bias','?')} | "
+                                        f"**Net GEX:** ${_flip.get('net_gex_m',0):.0f}M\n"
+                                        f"Call wall: ${_flip.get('call_wall',0):.0f} | "
+                                        f"Put wall: ${_flip.get('put_wall',0):.0f} | "
+                                        f"Spot: ${_flip.get('spot',0):.2f}",
+                                        level="warning" if _sev == "STRONG" else "info",
+                                    )
+                                )
+                            except Exception as _nd:
+                                log.debug(f"  [Regime flip notify] {_nd}")
                 except Exception as _re:
                     log.debug(f"  [Regime flip check] {_re}")
 
@@ -4201,6 +4287,10 @@ class ARKAEngine:
 
         # Start dedicated position monitor (every 15s) — independent of scan loop
         asyncio.create_task(self.position_monitor_loop())
+
+        # Start GEX refresh loop — keeps gex_latest_{ticker}.json fresh for all scanned tickers
+        asyncio.create_task(self._gex_refresh_loop())
+        log.info("  📐 GEX refresh loop started (every 15 min)")
 
         # Announce engine start to Discord
         if DISCORD_ENABLED:
