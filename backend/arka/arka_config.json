@@ -1,0 +1,117 @@
+{
+  "version": "v2",
+  "updated_at": "2026-04-28T14:36:11.961044-04:00",
+  "updated_by": "win_rate_self_correct",
+  "note": "Epoch 3 \u2014 fresh start Apr 21 2026 \u2014 PA34OLZI1DZM $4k account",
+  "thresholds": {
+    "conviction_normal": 45,
+    "conviction_power_hour": 45,
+    "fakeout_block": 0.75
+  },
+  "limits": {
+    "max_daily_loss_pct": 0.02,
+    "max_concurrent": 2,
+    "max_trades_per_day": 8,
+    "losing_streak_limit": 3,
+    "losing_streak_pause": 1800
+  },
+  "position_sizing": {
+    "normal_pct": 0.25,
+    "power_hour_pct": 0.375,
+    "atr_stop_mult": 0.75,
+    "atr_target_mult": 1.5
+  },
+  "self_correct": {
+    "enabled": true,
+    "min_trades_to_adjust": 5,
+    "check_interval_trades": 5,
+    "no_trade_days_trigger": 3,
+    "fakeout_block_rate_trigger": 0.6,
+    "win_rate_low_trigger": 0.5,
+    "win_rate_high_trigger": 0.75,
+    "conviction_step": 2,
+    "fakeout_step": 0.05,
+    "conviction_min": 40,
+    "conviction_max": 65,
+    "fakeout_min": 0.48,
+    "fakeout_max": 0.75
+  },
+  "history": [
+    {
+      "ts": "2026-04-22T11:03:22.745149-04:00",
+      "event": "loss_streak_3",
+      "total_loss": -435.0,
+      "old_conv": 55,
+      "new_conv": 59,
+      "old_fakeout": 0.55,
+      "new_fakeout": 0.5,
+      "diagnoses": [
+        "All losses in SWING bucket \u2014 stock options too expensive or trend wrong",
+        "Large avg loss $145 \u2014 premiums too expensive, stops too wide"
+      ]
+    },
+    {
+      "ts": "2026-04-28T14:21:08.997997-04:00",
+      "event": "win_rate_adjust_loosened (high win rate)",
+      "win_rate": 1.0,
+      "old_conv": 59,
+      "new_conv": 57,
+      "old_f": 0.5,
+      "new_f": 0.55
+    },
+    {
+      "ts": "2026-04-28T14:22:20.181121-04:00",
+      "event": "win_rate_adjust_loosened (high win rate)",
+      "win_rate": 1.0,
+      "old_conv": 57,
+      "new_conv": 55,
+      "old_f": 0.55,
+      "new_f": 0.6
+    },
+    {
+      "ts": "2026-04-28T14:24:08.192921-04:00",
+      "event": "win_rate_adjust_loosened (high win rate)",
+      "win_rate": 1.0,
+      "old_conv": 55,
+      "new_conv": 53,
+      "old_f": 0.6,
+      "new_f": 0.65
+    },
+    {
+      "ts": "2026-04-28T14:32:29.332976-04:00",
+      "event": "win_rate_adjust_loosened (high win rate)",
+      "win_rate": 1.0,
+      "old_conv": 53,
+      "new_conv": 51,
+      "old_f": 0.65,
+      "new_f": 0.7
+    },
+    {
+      "ts": "2026-04-28T14:34:03.058965-04:00",
+      "event": "win_rate_adjust_loosened (high win rate)",
+      "win_rate": 1.0,
+      "old_conv": 51,
+      "new_conv": 49,
+      "old_f": 0.7,
+      "new_f": 0.75
+    },
+    {
+      "ts": "2026-04-28T14:35:09.196614-04:00",
+      "event": "win_rate_adjust_loosened (high win rate)",
+      "win_rate": 1.0,
+      "old_conv": 49,
+      "new_conv": 47,
+      "old_f": 0.75,
+      "new_f": 0.75
+    },
+    {
+      "ts": "2026-04-28T14:36:11.961064-04:00",
+      "event": "win_rate_adjust_loosened (high win rate)",
+      "win_rate": 1.0,
+      "old_conv": 47,
+      "new_conv": 45,
+      "old_f": 0.75,
+      "new_f": 0.75
+    }
+  ]
+}

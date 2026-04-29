@@ -1,0 +1,1745 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CHAKRA — Neural Trading OS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=JetBrains+Mono:wght@300;400;500;600;700&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/dashboard.css">
+</head>
+<body style="display:flex;flex-direction:column;height:100vh">
+
+<!-- ━━ HEADER ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+<div id="hdr">
+  <div class="logo">
+    <div class="logo-mark">C</div>
+    <div><div class="logo-name">CHAKRA</div><div class="logo-sub">Neural Trading OS</div></div>
+  </div>
+  <div class="hdiv"></div>
+  <div class="hs">
+    <div class="hs-l">Today P&L</div>
+    <div class="hs-v" id="hPnl">—</div>
+    <div class="hs-m" id="hPnlT">Realized</div>
+  </div>
+  <div class="hdiv"></div>
+  <div class="hs">
+    <div class="hs-l">Signals</div>
+    <div class="hs-v" id="hSig">—</div>
+    <div class="hs-m" id="hSigB">—</div>
+  </div>
+  <div class="hright">
+    <div class="day-b" id="dayB">DAY —/30</div>
+    <div id="mktBadge" class="closed">● CLOSED</div>
+    <button class="theme-btn" onclick="toggleTheme()" id="themeBtn" title="Toggle theme">🌙</button>
+    <button class="hbtn" onclick="manualRefresh()"><span id="refreshIcon">↺</span> REFRESH</button>
+    <button class="hbtn" onclick="openS()">⚙</button>
+  </div>
+</div>
+
+<!-- ━━ MAIN TABS (CHAKRA-style pill nav) ━━━━━━━━━━━━━━━━━ -->
+<div id="mainTabbar">
+  <button class="mtab active" id="mt-arjun"   onclick="setMain('arjun')">🧠 ARJUN</button>
+  <button class="mtab"        id="mt-trading"  onclick="setMain('trading')">📈 TRADING</button>
+  <button class="mtab"        id="mt-analysis" onclick="setMain('analysis'); setTimeout(()=>{ const _mt=sessionStorage.getItem('manifoldTicker')||'SPY'; if(typeof loadManifoldModPanel==='function') loadManifoldModPanel(_mt); if(typeof _startManifold3d==='function'&&!_manifold3dFrame) setTimeout(_startManifold3d,200); },100);">🔬 ANALYSIS</button>
+  <button class="mtab"        id="mt-power"    onclick="setMain('power')">⚡ POWER HOUR</button>
+  <button class="mtab"        id="mt-heatseeker" onclick="setMain('heatseeker');initHeatSeeker()">🔥 HEAT SEEKER</button>
+  <button class="mtab"        id="mt-system"   onclick="activateSystemTab()">⚙️ SYSTEM</button>
+</div>
+
+<!-- ━━ SUB-TABS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+<div id="subTabbar"></div>
+
+<!-- ━━ APP SHELL: Sidebar + Content ━━━━━━━━━━━━━━━━━━━━━ -->
+<div id="appShell">
+
+  <!-- ── Portfolio Sidebar ──────────────────────────────── -->
+  <div id="sidebarPortfolio">
+
+    <!-- Total Balance card -->
+    <div class="sb-balance-card">
+      <div class="sb-balance-top">
+        <span class="sb-balance-epoch" id="sbEpochLabel">Epoch 3 — Paper Trading</span>
+        <span class="sb-balance-live-dot" id="sbLiveDot"></span>
+      </div>
+      <div class="sb-balance-val" id="sbTotalVal">—</div>
+      <div class="sb-balance-pnl">
+        <span style="color:var(--sub)">Today</span>
+        <span id="sbTotalPnl" class="sb-balance-pnl-val">—</span>
+      </div>
+    </div>
+
+    <!-- Budget buckets with progress bars -->
+    <div class="sb-bucket-card">
+      <div class="sb-bucket-row">
+        <div class="sb-bucket-label">0DTE</div>
+        <div class="sb-bucket-pnl" id="sbOdtePnl">—</div>
+      </div>
+      <div class="sb-bucket-bar-wrap">
+        <div class="sb-bucket-bar" id="sbOdteBar" style="width:0%"></div>
+      </div>
+      <div class="sb-bucket-meta">
+        <span id="sbOdteVal" style="color:var(--sub)">$2k cap</span>
+        <span id="sbOdteOpen" style="color:var(--sub)">0 open</span>
+      </div>
+    </div>
+
+    <div class="sb-bucket-card">
+      <div class="sb-bucket-row">
+        <div class="sb-bucket-label">SWING</div>
+        <div class="sb-bucket-pnl" id="sbSwingPnl">—</div>
+      </div>
+      <div class="sb-bucket-bar-wrap">
+        <div class="sb-bucket-bar sb-bucket-bar--swing" id="sbSwingBar" style="width:0%"></div>
+      </div>
+      <div class="sb-bucket-meta">
+        <span id="sbSwingVal" style="color:var(--sub)">$2k cap</span>
+        <span id="sbSwingOpen" style="color:var(--sub)">0 open</span>
+      </div>
+    </div>
+
+    <!-- Total P&L + Open -->
+    <div class="sb-summary-row">
+      <div class="sb-summary-cell">
+        <div class="sb-summary-label">Total P&amp;L</div>
+        <div class="sb-summary-val" id="sbTotalPnlBox">—</div>
+      </div>
+      <div class="sb-summary-cell">
+        <div class="sb-summary-label">Open Pos</div>
+        <div class="sb-summary-val" id="sbOpenPos">—</div>
+      </div>
+      <div class="sb-summary-cell">
+        <div class="sb-summary-label">Cash</div>
+        <div class="sb-summary-val" id="sbCash">—</div>
+      </div>
+    </div>
+
+    <!-- Recent trades -->
+    <div class="sb-section">
+      <div class="sb-label" style="margin-bottom:8px">Recent Trades</div>
+      <div id="sbRecentTrades">
+        <div style="color:var(--sub);font-size:10px">Loading...</div>
+      </div>
+    </div>
+
+    <!-- ARKA Live Scan Feed -->
+    <div class="sb-section">
+      <div class="sb-label" style="margin-bottom:6px">⚡ ARKA Scans</div>
+      <div id="sbScanFeed">
+        <div style="color:var(--sub);font-size:10px">Waiting...</div>
+      </div>
+    </div>
+
+    <!-- Swing Screener -->
+    <div class="sb-section">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div class="sb-label">🔭 Screeners</div>
+        <span id="sbScreenerCount" style="font-size:9px;color:var(--sub)">—</span>
+      </div>
+      <div id="sbScreenerFeed">
+        <div style="color:var(--sub);font-size:10px">Loading...</div>
+      </div>
+    </div>
+
+  </div><!-- /sidebar -->
+
+  <!-- ── Main Content Area ──────────────────────────────── -->
+  <div id="mainContent">
+    <div id="scrollArea">
+
+<!-- ════════════════ ARJUN PANES ════════════════════════ -->
+<div class="pane active" id="p-arjun-signals">
+  <!-- George-style header -->
+  <div style="margin-bottom:16px">
+    <div style="font-size:8px;letter-spacing:2px;color:var(--sub);text-transform:uppercase;margin-bottom:4px">
+      ALGORITHMIC SENTIMENT ANALYSIS
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <div style="font-size:22px;font-weight:800;letter-spacing:-0.5px">
+        Live Signals <span id="sigCnt" style="font-size:14px;font-weight:400;color:var(--sub)">— Active</span>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span id="lastUpdate" style="font-size:9px;color:var(--sub);font-family:'JetBrains Mono',monospace">—</span>
+        <span id="sigBrk" class="chip" style="background:rgba(0,208,132,0.1);color:var(--green);font-size:9px">● LIVE</span>
+      </div>
+    </div>
+  </div>
+  <!-- CHAKRA Pipeline Status Widget -->
+  <div id="pipelineStatus"></div>
+  <!-- ARJUN Accuracy Widget -->
+  <div id="arjunAccuracyWidget" style="margin-bottom:16px;display:none"></div>
+  <div id="sigGrid"><div class="ld"><div class="spin"></div>Loading signals…</div></div>
+</div>
+
+<div class="pane" id="p-arjun-performance">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+    <button onclick="setSub('signals')"
+      style="background:var(--bg3);border:1px solid var(--border);border-radius:5px;
+      padding:5px 12px;cursor:pointer;color:var(--sub);font-size:11px">← Back</button>
+    <div style="font-size:8px;letter-spacing:2px;color:var(--sub);text-transform:uppercase">Performance Tracker</div>
+  </div>
+  <div id="performanceContent"><div class="ld"><div class="spin"></div>Loading…</div></div>
+</div>
+
+
+
+<div class="pane" id="p-arjun-chat">
+  <div id="chatWrap">
+    <div id="chatMsgs">
+      <div class="cmsg arjun"><div class="cname">Arjun — Neural Trading OS</div>Hello! I'm ARJUN, your multi-agent trading intelligence. Ask me anything about the markets, our signals, strategies, or how CHAKRA works.</div>
+    </div>
+    <div id="chatInput">
+      <textarea id="chatBox" placeholder="Ask Arjun anything…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat('main')}"></textarea>
+      <button id="chatSend" onclick="sendChat('main')">SEND</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════ TRADING PANES ════════════════════════ -->
+<div class="pane" id="p-trading-arka">
+  <!-- Ticker Management -->
+  <div class="panel" style="margin-bottom:12px">
+    <div class="ph">
+      <span class="pt">🎯 ARKA Tickers</span>
+      <span class="chip cm" id="arkaTkrCount">SPY · QQQ</span>
+    </div>
+    <div class="pb" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <div id="arkaTkrChips" style="display:flex;gap:5px;flex-wrap:wrap"></div>
+      <div style="display:flex;gap:6px;margin-left:auto">
+        <input id="arkaTkrInput" placeholder="Add ticker…" maxlength="6"
+          style="background:var(--bg3);border:1px solid var(--border);border-radius:4px;
+          padding:4px 8px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11px;width:90px;text-transform:uppercase"
+          onkeydown="if(event.key==='Enter')addArkaTicker(this.value)">
+        <button onclick="addArkaTicker($('arkaTkrInput').value)"
+          style="background:var(--accent);color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:11px">+</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Engine Controls -->
+  <div id="engine-controls-container" style="margin-bottom:14px">
+    <!-- RESTART ALL — prominent button always visible in sidebar -->
+    <button id="restartAllBtn" onclick="restartAllModules(this)"
+      style="width:100%;padding:9px 12px;margin-bottom:8px;cursor:pointer;border-radius:6px;
+        font-size:12px;font-weight:700;font-family:'JetBrains Mono',monospace;letter-spacing:0.5px;
+        background:rgba(255,179,71,0.12);color:var(--gold);
+        border:1px solid rgba(255,179,71,0.35);transition:all 0.2s"
+      onmouseover="this.style.background='rgba(255,179,71,0.22)'"
+      onmouseout="this.style.background='rgba(255,179,71,0.12)'">
+      ⟳ RESTART ALL MODULES
+    </button>
+    <div id="restartStatusLine" style="font-size:9px;color:var(--sub);text-align:center;
+      margin-bottom:8px;min-height:12px;font-family:'JetBrains Mono',monospace"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      <button id="arkaStartBtn" onclick="engineAction('start','arka')" style="background:rgba(0,208,132,0.1);color:var(--green);border:1px solid rgba(0,208,132,0.3);border-radius:4px;padding:5px 12px;cursor:pointer;font-size:11px;font-family:'JetBrains Mono',monospace">▶ ARKA</button>
+      <button id="arkaStopBtn"  onclick="engineAction('stop','arka')"  style="background:rgba(255,61,90,0.1);color:var(--red);border:1px solid rgba(255,61,90,0.3);border-radius:4px;padding:5px 12px;cursor:pointer;font-size:11px;font-family:'JetBrains Mono',monospace">■ Stop</button>
+      <button onclick="engineAction('start','flow_monitor')" style="background:rgba(61,142,255,0.1);color:var(--blue);border:1px solid rgba(61,142,255,0.3);border-radius:4px;padding:5px 12px;cursor:pointer;font-size:11px;font-family:'JetBrains Mono',monospace">Flow</button>
+      <button onclick="engineAction('start','internals')" style="background:rgba(61,142,255,0.1);color:var(--blue);border:1px solid rgba(61,142,255,0.3);border-radius:4px;padding:5px 12px;cursor:pointer;font-size:11px;font-family:'JetBrains Mono',monospace">Internals</button>
+    </div>
+    <div id="engine-status-grid"></div>
+  </div>
+
+  <!-- Stats row -->
+  <div class="g3" style="margin-bottom:12px">
+    <div class="panel">
+      <div class="ph"><span class="pt">Today's P&L</span><span class="chip cm">PAPER</span></div>
+      <div class="pb">
+        <div class="mn" style="font-size:26px;font-weight:700" id="aPnl">$0.00</div>
+        <div style="font-size:10px;color:var(--sub);margin-top:4px" id="aTrades">0 trades executed</div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="ph"><span class="pt">Session</span></div>
+      <div class="pb">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div><div style="font-size:7px;color:var(--sub);letter-spacing:1px">SCANS</div><div class="mn" style="font-size:18px;font-weight:700" id="aScans">0</div></div>
+          <div><div style="font-size:7px;color:var(--sub);letter-spacing:1px">L-STREAK</div><div class="mn" style="font-size:18px;font-weight:700" id="aStreak">0</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="ph"><span class="pt">Risk Mode</span></div>
+      <div class="pb" id="aRisk"><div class="ld"><div class="spin"></div></div></div>
+    </div>
+  </div>
+
+  <!-- Positions table (CHAKRA-style) -->
+  <div class="panel">
+    <div class="ph">
+      <span class="pt">Positions</span>
+      <span id="aTradeCount" class="chip cm">0 trades</span>
+    </div>
+    <table class="tbl">
+      <thead>
+        <tr id="positionsHeader">
+          <th data-sort="ticker" style="cursor:pointer;user-select:none">Ticker <span class="sort-arrow"></span></th>
+          <th data-sort="dte" style="cursor:pointer;user-select:none">DTE <span class="sort-arrow"></span></th>
+          <th>Side</th>
+          <th data-sort="size" style="cursor:pointer;user-select:none">Qty <span class="sort-arrow"></span></th>
+          <th data-sort="entry" style="cursor:pointer;user-select:none">Entry <span class="sort-arrow"></span></th>
+          <th>Strike · Type</th>
+          <th data-sort="current_price" style="cursor:pointer;user-select:none">Current / Exit <span class="sort-arrow"></span></th>
+          <th data-sort="pnl" style="cursor:pointer;user-select:none">P&amp;L <span class="sort-arrow"></span></th>
+          <th data-sort="status" style="cursor:pointer;user-select:none">Status <span class="sort-arrow"></span></th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="aPositionsBody">
+        <tr><td colspan="10"><div class="empty">No trades today</div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="pane" id="p-trading-chakra-swings">
+  <div style="display:grid;grid-template-columns:1fr 320px;gap:14px;align-items:start">
+
+    <!-- LEFT: Swings content -->
+    <div>
+      <!-- Watchlist candidates -->
+      <div class="panel" style="margin-bottom:12px">
+        <div class="ph" style="cursor:pointer" onclick="_toggleSection('swings-watchlist-table',this)">
+          <span class="pt">🌀 ARKA Swing Watchlist</span>
+          <span id="swingsCandidateCount" class="chip cm">0 candidates</span>
+          <span style="margin-left:auto;color:var(--sub);font-size:12px">▼</span>
+        </div>
+        <div id="swings-watchlist-table">
+          <div class="empty">No candidates — scanner runs at 8:15am ET<br><span style="font-size:10px">Requires: 1.5x volume · 60%+ conviction · ICT structure</span></div>
+        </div>
+      </div>
+
+      <!-- Open positions -->
+      <div class="panel" style="margin-bottom:12px">
+        <div class="ph">
+          <span class="pt">Open Swing Positions</span>
+          <span id="swingsOpenCount" class="chip cm">0 open</span>
+        </div>
+        <div class="pb" id="swings-positions-table">
+          <div class="empty">No open swing positions</div>
+        </div>
+      </div>
+
+      <!-- Closed positions -->
+      <div class="panel">
+        <div class="ph">
+          <span class="pt">CHAKRA Swings</span>
+          <span class="chip cgo">MULTI-DAY</span>
+        </div>
+        <div class="pb">
+          <div class="empty">Swing signals appear here — requires 1.5x volume + 60%+ conviction</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Live Scan Feed panel -->
+    <div style="position:sticky;top:14px">
+      <div class="panel" style="border:1px solid rgba(61,142,255,0.2)">
+        <div class="ph" style="background:rgba(0,208,132,0.05)">
+          <span class="pt">🧠 CHAKRA Signals</span>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span id="swingsScanCount" class="chip cg">0</span>
+            <button onclick="_toggleScanFeedExpand()" id="scanFeedExpandBtn"
+              style="background:var(--bg3);border:1px solid var(--border);border-radius:4px;
+              padding:2px 8px;cursor:pointer;color:var(--sub);font-size:10px;
+              font-family:'JetBrains Mono',monospace;transition:all .15s"
+              title="Expand full signal list">⤢ EXPAND</button>
+          </div>
+        </div>
+
+        <!-- Signal feed: ARJUN signals for swing candidates -->
+        <div id="swingsScanFeed" style="max-height:460px;overflow-y:auto">
+          <div id="swingsScanRows">
+            <div class="empty" style="padding:20px">Loading CHAKRA signals...</div>
+          </div>
+        </div>
+
+        <!-- Expand button footer -->
+        <div style="padding:8px 12px;border-top:1px solid var(--border);text-align:center">
+          <button onclick="_toggleScanFeedExpand()"
+            style="background:none;border:none;color:var(--blue);font-size:10px;
+            cursor:pointer;font-family:'JetBrains Mono',monospace;letter-spacing:.5px">
+            View all scans →
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="pane" id="p-trading-chakra-stocks">
+  <div class="panel">
+    <div class="ph"><span class="pt">CHAKRA Stocks</span><span class="chip cm">SCANNER</span></div>
+    <div class="pb" id="stockScan"><div class="empty">Stock scanner signals load during market hours</div></div>
+  </div>
+</div>
+
+<!-- ARKA Indexes Scanner -->
+<div class="pane" id="p-trading-arka-indexes">
+  <div class="panel">
+    <div class="ph">
+      <span class="pt">📊 ARKA Index Scanner</span>
+      <span class="chip cm">SPY · QQQ · IWM · DIA · SPX</span>
+    </div>
+    <div class="pb" id="arkaIndexesContent">
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:12px" id="indexGexCards">
+        <div class="ld"><div class="spin"></div></div>
+      </div>
+      <div id="indexFlowFeed" style="max-height:400px;overflow-y:auto">
+        <div class="empty">Index flow signals appear here during market hours</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ARKA Stocks Scanner -->
+<div class="pane" id="p-trading-arka-stocks">
+  <div class="panel">
+    <div class="ph">
+      <span class="pt">🏪 ARKA Stocks Scanner</span>
+      <span class="chip cm">DYNAMIC UNIVERSE</span>
+      <span id="stocksCount" class="chip cg" style="margin-left:4px">0 signals</span>
+    </div>
+    <div class="pb" id="arkaStocksContent">
+      <div id="openPositionsPanel" style="margin-bottom:16px"></div>
+      <div id="stocksFlowFeed" style="max-height:500px;overflow-y:auto">
+        <div class="empty">Stock flow signals appear here during market hours</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ARKA Lotto Tab -->
+<div class="pane" id="p-trading-arka-lotto-tab">
+  <div class="panel">
+    <div class="ph">
+      <span class="pt">🎰 ARKA Lotto</span>
+      <span class="chip" style="background:rgba(255,140,0,0.15);color:var(--gold)">3:30–4:00 PM ET</span>
+    </div>
+    <div class="pb">
+      <div style="text-align:center;padding:20px">
+        <div style="font-size:32px;margin-bottom:8px">🎰</div>
+        <div style="font-size:14px;font-weight:700;color:var(--gold)">Power Hour Lotto</div>
+        <div style="font-size:11px;color:var(--sub);margin-top:4px">0DTE options · Hero or Zero · 3:30–3:58 PM ET</div>
+      </div>
+      <div id="lottoTabContent"><div class="empty">Loading index data...</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="pane" id="p-trading-taraka" style="display:none">
+  <!-- TARAKA Penny Stock Watchlist -->
+  <div class="panel" style="margin-bottom:12px">
+    <div class="ph">
+      <span class="pt">💎 TARAKA Penny Watchlist</span>
+      <span class="chip" style="background:rgba(155,89,182,0.15);color:var(--purple)" id="tarakaTkrCount">$0.10–$5.00</span>
+    </div>
+    <div class="pb" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <div id="tarakaTkrChips" style="display:flex;gap:5px;flex-wrap:wrap">
+        <span style="font-size:9px;color:var(--sub)">Auto-screened: momentum + volume surge · $0.10–$5.00 price range</span>
+      </div>
+      <div style="display:flex;gap:6px;margin-left:auto">
+        <input id="tarakaTkrInput" placeholder="Watch ticker…" maxlength="6"
+          style="background:var(--bg3);border:1px solid var(--border);border-radius:4px;
+          padding:4px 8px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11px;width:100px;text-transform:uppercase"
+          onkeydown="if(event.key==='Enter')addTarakaTicker(this.value)">
+        <button onclick="addTarakaTicker($('tarakaTkrInput').value)"
+          style="background:rgba(155,89,182,0.8);color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:11px">Watch</button>
+      </div>
+    </div>
+  </div>
+  <div class="g2" style="margin-bottom:12px">
+    <div class="panel">
+      <div class="ph"><span class="pt">👁 TARAKA Status</span><span id="tarakaBotBadge" class="chip cm">CHECKING…</span></div>
+      <div class="pb">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px" id="tarakaChannelChips"><div class="ld"><div class="spin"></div></div></div>
+        <div style="font-size:10px;color:var(--sub)" id="tStatus">Loading channel config…</div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="ph"><span class="pt">Today's Summary</span></div>
+      <div class="pb" id="tSum"><div class="ld"><div class="spin"></div></div></div>
+    </div>
+  </div>
+  <div class="panel" style="margin-bottom:12px">
+    <div class="ph">
+      <span class="pt">📡 Channel Manager</span>
+      <button onclick="toggleChannelManager()" id="chMgrToggleBtn" class="hbtn">+ ADD CHANNEL</button>
+    </div>
+    <div class="pb">
+      <div id="tarakaChannelList" style="margin-bottom:10px"></div>
+      <div id="tarakaAddForm" style="display:none;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:12px;margin-top:8px">
+        <div style="font-size:9px;color:var(--sub);letter-spacing:1px;margin-bottom:10px">ADD NEW CHANNEL — Right-click channel in Discord → Copy Channel ID</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end">
+          <div>
+            <div style="font-size:9px;color:var(--sub);margin-bottom:4px">CHANNEL NAME</div>
+            <input id="chNewName" placeholder="e.g. ALERTS" class="sinput" style="height:32px">
+          </div>
+          <div>
+            <div style="font-size:9px;color:var(--sub);margin-bottom:4px">CHANNEL ID</div>
+            <input id="chNewId" placeholder="e.g. 1234567890123456789" class="sinput" style="height:32px">
+          </div>
+          <button onclick="addTarakaChannel()" style="padding:6px 14px;border-radius:4px;border:none;background:var(--accent);color:#fff;font-family:'JetBrains Mono',monospace;font-size:10px;cursor:pointer;font-weight:700;height:32px">ADD ✓</button>
+        </div>
+        <div id="chAddStatus" style="font-size:10px;margin-top:8px;color:var(--sub)"></div>
+      </div>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="ph"><span class="pt">📨 Alert Feed</span><span id="tAlertCount" class="chip cm">0 today</span></div>
+    <div class="pb" id="tFeed"><div class="empty">No alerts today</div></div>
+  </div>
+</div>
+
+<!-- ════════════════ ANALYSIS PANES ══════════════════════ -->
+<div class="pane" id="p-analysis-analysis">
+
+  <!-- ── Top bar ─────────────────────────────────────────── -->
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+    <button id="mbtn-pre"  class="mbriefing-btn active-brief" onclick="switchBriefingMode('pre')">🌅 Pre-Market</button>
+    <button id="mbtn-post" class="mbriefing-btn"              onclick="switchBriefingMode('post')">🌆 Post-Market</button>
+    <span id="mbriefingDate" style="margin-left:auto;font-size:10px;color:var(--sub);font-family:'JetBrains Mono',monospace">—</span>
+    <button onclick="loadMarketBriefing(true)" style="background:none;border:1px solid var(--accent);color:var(--accent);border-radius:6px;padding:4px 12px;font-size:11px;cursor:pointer;font-family:inherit">↻ Refresh</button>
+  </div>
+
+  <!-- ── Index Scoreboard (4 big tiles) ─────────────────── -->
+  <div id="mktIndexRow" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px">
+    <div class="ld" style="grid-column:1/-1"><div class="spin"></div></div>
+  </div>
+
+  <!-- ── Middle row: Macro | Sentiment | VIX gauge ───────── -->
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px">
+    <div class="panel">
+      <div class="ph"><span class="pt">🌍 Macro</span><span class="chip cm" id="mktMacroTs">—</span></div>
+      <div id="mktMacroList" style="padding:8px 12px"></div>
+    </div>
+    <div class="panel">
+      <div class="ph"><span class="pt">📡 Sentiment</span><span id="mktSentBadge" class="chip cm">—</span></div>
+      <div id="mktSentList" style="padding:8px 12px"></div>
+    </div>
+    <div class="panel">
+      <div class="ph"><span class="pt">🌡 Volatility</span></div>
+      <div id="mktVolPanel" style="padding:10px 12px"></div>
+    </div>
+  </div>
+
+  <!-- ── Briefing Narrative ───────────────────────────────── -->
+  <div class="panel" style="margin-bottom:12px">
+    <div class="ph">
+      <span id="mktNarrativeTitle" class="pt">🌅 Pre-Market Briefing</span>
+      <span id="mktBriefBadge" class="chip cm">—</span>
+    </div>
+    <div id="mbriefingNarrative" style="padding:16px 18px">
+      <div class="ld"><div class="spin"></div>Fetching market data…</div>
+    </div>
+  </div>
+
+  <!-- ── Sector Breadth (populated from sectors snapshot) ── -->
+  <div class="panel" style="margin-bottom:12px">
+    <div class="ph"><span class="pt">📊 Sector Breadth</span><span id="mktBreadthBadge" class="chip cm">—</span></div>
+    <div id="mktBreadthRow" style="padding:12px"></div>
+  </div>
+
+  <!-- hidden legacy tiles container kept for compat -->
+  <div id="mbriefingTiles" style="display:none"></div>
+</div>
+
+<div class="pane" id="p-analysis-flow">
+  <div class="g2" style="margin-bottom:12px">
+    <div class="panel">
+      <div class="ph"><span class="pt">🌊 Dark Pool Activity</span><span class="chip" id="dpBias" style="background:rgba(99,102,241,0.1);color:var(--accent)">—</span></div>
+      <div class="pb" id="dpBody" style="display:flex;flex-direction:column;gap:8px"><div class="ld"><div class="spin"></div></div></div>
+    </div>
+    <div class="panel">
+      <div class="ph"><span class="pt">🔥 Unusual Options Activity</span><span class="chip cb" id="uoaBias">—</span></div>
+      <div class="pb" id="uoaBody"><div class="ld"><div class="spin"></div></div></div>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="ph"><span class="pt">Smart Money Conviction</span></div>
+    <div class="pb" id="flowSummary" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px"></div>
+  </div>
+</div>
+
+<div class="pane" id="p-analysis-gex">
+  <!-- GEX Analysis Header — George Style -->
+  <div id="gexAnalysisHeader" style="margin-bottom:14px">
+    <div id="gexLastSessionBanner" style="display:none;background:rgba(255,179,71,0.08);border:1px solid rgba(255,179,71,0.3);border-radius:6px;padding:8px 14px;margin-bottom:10px;align-items:center;gap:8px">
+      <span style="font-size:11px">🕐</span>
+      <span id="gexLastSessionText" style="font-size:11px;color:var(--gold)">Last Session — Loading...</span>
+    </div>
+    <div id="gexTickerRow" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;padding:10px;background:var(--bg2);border-radius:7px;border:1px solid var(--border)">
+      <!-- Populated by JS -->
+    </div>
+    <div id="gexGeorgeCard" style="background:var(--bg2);border-radius:9px;border:1px solid var(--border);padding:16px;margin-bottom:10px">
+      <div style="text-align:center;padding:20px;color:var(--sub);font-size:12px">Loading GEX analysis...</div>
+    </div>
+  </div>
+  <div id="gexTickerHeader" style="margin-bottom:10px"></div>
+  <div style="display:none">
+    <span style="font-size:10px;color:var(--sub);line-height:28px">GEX for:</span>
+    <button onclick="selectGexTicker('SPX');updateGexRangeLevels('SPX')" id="gbt-SPX" class="gex-btn active-gex">SPX</button>
+    <button onclick="selectGexTicker('SPY');updateGexRangeLevels('SPY')" id="gbt-SPY" class="gex-btn">SPY</button>
+    <button onclick="selectGexTicker('QQQ');updateGexRangeLevels('QQQ')" id="gbt-QQQ" class="gex-btn">QQQ</button>
+    <button onclick="selectGexTicker('IWM');updateGexRangeLevels('IWM')" id="gbt-IWM" class="gex-btn">IWM</button>
+    <button onclick="selectGexTicker('DIA');updateGexRangeLevels('DIA')" id="gbt-DIA" class="gex-btn">DIA</button>
+    <span style="width:1px;background:var(--border);margin:0 4px"></span>
+    <button onclick="selectGexTicker('NVDA');updateGexRangeLevels('NVDA')" id="gbt-NVDA" class="gex-btn">NVDA</button>
+    <button onclick="selectGexTicker('TSLA');updateGexRangeLevels('TSLA')" id="gbt-TSLA" class="gex-btn">TSLA</button>
+    <button onclick="selectGexTicker('AAPL');updateGexRangeLevels('AAPL')" id="gbt-AAPL" class="gex-btn">AAPL</button>
+    <button onclick="selectGexTicker('MSFT');updateGexRangeLevels('MSFT')" id="gbt-MSFT" class="gex-btn">MSFT</button>
+    <button onclick="selectGexTicker('AMZN');updateGexRangeLevels('AMZN')" id="gbt-AMZN" class="gex-btn">AMZN</button>
+    <button onclick="selectGexTicker('GOOGL');updateGexRangeLevels('GOOGL')" id="gbt-GOOGL" class="gex-btn">GOOGL</button>
+    <button onclick="selectGexTicker('META');updateGexRangeLevels('META')" id="gbt-META" class="gex-btn">META</button>
+    <button onclick="selectGexTicker('AVGO');updateGexRangeLevels('AVGO')" id="gbt-AVGO" class="gex-btn">AVGO</button>
+    <button onclick="selectGexTicker('GLD');updateGexRangeLevels('GLD')" id="gbt-GLD" class="gex-btn">GLD</button>
+    <button onclick="selectGexTicker('SLV');updateGexRangeLevels('SLV')" id="gbt-SLV" class="gex-btn">SLV</button>
+  </div>
+  <!-- Range Bound Levels — call wall / zero gamma / put wall / regime -->
+  <div id="gexRangeLevels" style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;margin-bottom:10px;align-items:stretch">
+    <div style="background:rgba(255,61,90,0.07);border:1px solid rgba(255,61,90,0.25);border-radius:6px;padding:10px 14px">
+      <div style="font-size:8px;letter-spacing:1.5px;color:var(--red);text-transform:uppercase;margin-bottom:2px;font-weight:700">🔴 Call Wall</div>
+      <div style="font-size:8px;color:var(--sub);margin-bottom:5px">Upside ceiling — price stalls or reverses here</div>
+      <div id="gexCallWall" style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:800;color:var(--red)">—</div>
+      <div id="gexCallWallDist" style="font-size:9px;color:var(--sub);margin-top:2px">—</div>
+    </div>
+    <div style="background:rgba(255,204,0,0.07);border:1px solid rgba(255,204,0,0.25);border-radius:6px;padding:10px 14px">
+      <div style="font-size:8px;letter-spacing:1.5px;color:var(--gold);text-transform:uppercase;margin-bottom:2px;font-weight:700">⚡ Flip Point</div>
+      <div style="font-size:8px;color:var(--sub);margin-bottom:5px">Zero Gamma — market turns explosive past this</div>
+      <div id="gexZeroGamma" style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:800;color:var(--gold)">—</div>
+      <div id="gexZeroGammaPos" style="font-size:9px;color:var(--sub);margin-top:2px">—</div>
+    </div>
+    <div style="background:rgba(0,208,132,0.07);border:1px solid rgba(0,208,132,0.25);border-radius:6px;padding:10px 14px">
+      <div style="font-size:8px;letter-spacing:1.5px;color:var(--green);text-transform:uppercase;margin-bottom:2px;font-weight:700">🟢 Put Wall</div>
+      <div style="font-size:8px;color:var(--sub);margin-bottom:5px">Downside floor — price tends to bounce here</div>
+      <div id="gexPutWall" style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:800;color:var(--green)">—</div>
+      <div id="gexPutWallDist" style="font-size:9px;color:var(--sub);margin-top:2px">—</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px;justify-content:center">
+      <div id="gexRegimeBadge" style="font-size:9px;font-weight:700;padding:4px 8px;border-radius:4px;text-align:center;letter-spacing:1px;background:var(--bg3);color:var(--sub)">—</div>
+      <div id="gexRegimeCallBadge" style="font-size:8px;font-weight:700;padding:4px 8px;border-radius:4px;text-align:center;letter-spacing:0.5px;background:var(--bg3);color:var(--sub)">—</div>
+      <div id="gexCliffBadge" style="display:none;font-size:9px;font-weight:700;padding:4px 8px;border-radius:4px;text-align:center;letter-spacing:1px;background:rgba(255,140,0,0.2);color:var(--gold);border:1px solid rgba(255,140,0,0.4)">⚡ CLIFF TODAY</div>
+    </div>
+  </div>
+
+  <div id="gexStatBar" style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:12px"><div class="ld" style="grid-column:1/-1"><div class="spin"></div></div></div>
+
+  <!-- CHAKRA-style: Strategy Card + Session Analysis -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+    <div class="panel" id="gexStrategyCard">
+      <div class="pb"><div class="ld"><div class="spin"></div></div></div>
+    </div>
+    <div class="panel">
+      <div class="ph"><span class="pt">📋 Session Analysis</span></div>
+      <div class="pb" id="gexSessionAnalysis"><div class="ld"><div class="spin"></div></div></div>
+    </div>
+  </div>
+
+  <!-- CHAKRA-style: Signal Panel with Forces -->
+  <div class="panel" style="margin-bottom:12px">
+    <div class="ph"><span class="pt">⚡ Signal Panel</span><span class="chip cm" id="gexSignalLabel">—</span></div>
+    <div class="pb" id="gexSignalPanel"><div class="ld"><div class="spin"></div></div></div>
+  </div>
+
+  <!-- CHAKRA-style: Hedging Windows -->
+  <div class="panel" style="margin-bottom:12px">
+    <div class="ph"><span class="pt">🕐 Hedging Windows (ET)</span><span class="chip cm">Dealer activity</span></div>
+    <div class="pb" id="gexHedgingWindows"><div class="ld"><div class="spin"></div></div></div>
+  </div>
+
+  <!-- Row 1: Expected Move + ARJUN Path side by side -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+    <div class="panel">
+      <div class="ph"><span class="pt">📐 Expected Move</span><span class="chip cm">Implied range</span></div>
+      <div class="pb" id="gexExpectedMove"><div class="ld"><div class="spin"></div></div></div>
+    </div>
+    <div class="panel">
+      <div class="ph"><span class="pt">🧠 ARJUN Path Prediction</span><span class="chip cb">AI</span></div>
+      <div class="pb" id="gexArjunPath"><div class="ld"><div class="spin"></div></div></div>
+    </div>
+  </div>
+
+  <!-- Row 2: Price Action Map as tiles -->
+  <div class="panel" style="margin-bottom:12px">
+    <div class="ph">
+      <span class="pt">🗺 Price Action Map</span>
+      <span class="chip cm">GEX dealer barriers</span>
+    </div>
+    <div id="priceActionMap" style="padding:10px;display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px">
+      <div class="ld" style="grid-column:1/-1"><div class="spin"></div></div>
+    </div>
+  </div>
+
+  <!-- Row 3: GEX by Strike compact + Heatmap side by side -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+    <div class="panel">
+      <div class="ph"><span class="pt">📊 GEX by Strike</span><span class="chip cm">All expirations</span></div>
+      <div class="pb" id="gexByStrike"><div class="ld"><div class="spin"></div></div></div>
+    </div>
+    <div class="panel">
+      <div class="ph"><span class="pt">🔥 GEX Heatmap</span></div>
+      <div style="padding:10px">
+        <canvas id="gexHeatCanvas" height="260" style="width:100%;display:block"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 4: Direction + Risk side by side -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+    <div class="panel">
+      <div class="ph"><span class="pt">📈 Path & Direction</span></div>
+      <div class="pb" id="gexDirectionBody"><div class="ld"><div class="spin"></div></div></div>
+    </div>
+    <div class="panel">
+      <div class="ph"><span class="pt">⚡ Risk Meters</span></div>
+      <div class="pb" id="gexRiskMeters"><div class="ld"><div class="spin"></div></div></div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px" id="gexWalls3"></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+    <div class="panel">
+      <div class="ph"><span class="pt">Dealer Positioning</span></div>
+      <div class="pb" id="gexDealer"><div class="ld"><div class="spin"></div></div></div>
+    </div>
+    <div class="panel">
+      <div class="ph"><span class="pt">Trade Guidance</span></div>
+      <div class="pb" id="gexGuidance"><div class="ld"><div class="spin"></div></div></div>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="ph"><span class="pt">Global Indices — Live</span><span class="chip cm" id="idxTime">—</span></div>
+    <div style="padding:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(105px,1fr));gap:8px" id="idxTiles">
+      <div class="ld" style="grid-column:1/-1"><div class="spin"></div></div>
+    </div>
+  </div>
+
+  <!-- Collapsible: Expiration Breakdown -->
+  <div class="panel" style="margin-top:12px">
+    <div class="ph" style="cursor:pointer" onclick="_toggleSection('gexExpiryBody',this)">
+      <span class="pt">📅 Expiration Breakdown</span>
+      <span id="gexExpiryCount" class="chip cm">— expirations</span>
+      <span style="margin-left:auto;color:var(--sub);font-size:12px">▼</span>
+    </div>
+    <div id="gexExpiryBody" style="display:none"><div class="ld"><div class="spin"></div></div></div>
+  </div>
+
+  <!-- Collapsible: Intraday GEX Timeline -->
+  <div class="panel" style="margin-top:12px">
+    <div class="ph" style="cursor:pointer" onclick="_toggleSection('gexTimelineBody',this)">
+      <span class="pt">📈 Intraday GEX Timeline</span>
+      <span id="gexTimelineTicker" class="chip cm">SPY</span>
+      <span style="margin-left:auto;color:var(--sub);font-size:12px">▲</span>
+    </div>
+    <div id="gexTimelineBody" style="display:block;padding:10px">
+      <canvas id="gexTimelineCanvas" height="200" style="width:100%;display:block"></canvas>
+    </div>
+  </div>
+
+  <!-- Collapsible: Term Structure -->
+  <div class="panel" style="margin-top:12px">
+    <div class="ph" style="cursor:pointer" onclick="_toggleSection('gexTermBody',this)">
+      <span class="pt">📊 Term Structure</span>
+      <span class="chip cm">Gamma roll-off by expiry</span>
+      <span style="margin-left:auto;color:var(--sub);font-size:12px">▲</span>
+    </div>
+    <div id="gexTermBody" style="display:block;padding:10px">
+      <canvas id="gexTermCanvas" height="240" style="width:100%;display:block"></canvas>
+      <div id="gexTermCliff" style="font-size:9px;color:var(--gold);margin-top:6px"></div>
+    </div>
+  </div>
+
+  <!-- How to Read This Page -->
+  <div class="panel" style="margin-top:12px">
+    <div class="ph" style="cursor:pointer" onclick="_toggleSection('gexGuideBody',this)">
+      <span class="pt">📖 How to Read This Page</span>
+      <span class="chip cm">Guide</span>
+      <span style="margin-left:auto;color:var(--sub);font-size:12px">▼</span>
+    </div>
+    <div id="gexGuideBody" style="display:none;padding:14px;font-size:11px;line-height:1.8;color:var(--text)">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div>
+          <div style="font-weight:700;color:var(--gold);margin-bottom:6px">🔑 Key Concepts</div>
+          <div><strong style="color:var(--green)">Positive Gamma</strong> — Dealers dampen moves. Price pins near key strikes. Favor mean-reversion trades.</div><br>
+          <div><strong style="color:var(--red)">Negative Gamma</strong> — Dealers amplify moves. Breakouts are explosive. Favor momentum trades.</div><br>
+          <div><strong style="color:var(--red)">Call Wall</strong> — Strong resistance. Dealers sell rallies here. Price rejects or needs huge volume to break.</div><br>
+          <div><strong style="color:var(--green)">Put Wall</strong> — Strong support. Dealers buy dips here. Price bounces or needs panic to break.</div><br>
+          <div><strong style="color:var(--gold)">Zero Gamma</strong> — The flip point. Above = positive gamma (mean revert). Below = negative gamma (trend).</div><br>
+          <div><strong style="color:var(--purple)">Pin</strong> — Strike with max GEX. Price gravitates here by expiry (like a magnet).</div>
+        </div>
+        <div>
+          <div style="font-weight:700;color:var(--gold);margin-bottom:6px">📊 Reading the Panels</div>
+          <div><strong>Strategy Card</strong> — What to trade TODAY. Entry, target, and invalidation based on GEX structure.</div><br>
+          <div><strong>Signal Panel Forces</strong> — Visual bars showing alignment of 6 factors. All green = high conviction. Mixed = wait.</div><br>
+          <div><strong>Hedging Windows</strong> — Key times when dealers rebalance. Expect increased volatility at these windows.</div><br>
+          <div><strong>Pin Risk %</strong> — How likely price is to stay pinned near a key strike. High = range trade. Low = breakout risk.</div><br>
+          <div><strong>Breakout %</strong> — Probability of a sustained directional move. High in negative gamma regimes.</div><br>
+          <div><strong>Expiration Breakdown</strong> — GEX by expiry date. Shows where dealer hedging pressure concentrates.</div><br>
+          <div><strong>Term Structure</strong> — Gamma roll-off chart. "Cliffs" = large GEX expiring soon = potential volatility event.</div>
+        </div>
+      </div>
+      <div style="margin-top:12px;padding:10px;background:var(--bg3);border-radius:6px;border-left:3px solid var(--gold)">
+        <strong style="color:var(--gold)">⚡ Quick Trading Rules:</strong><br>
+        1. If GEX is <strong>positive + pinned</strong>: sell options premium, fade extremes, target the pin<br>
+        2. If GEX is <strong>positive + not pinned</strong>: range trade between call wall and put wall<br>
+        3. If GEX is <strong>negative</strong>: trade breakouts with momentum, use walls as confirmation<br>
+        4. <strong>Call Wall closer</strong> to spot = upside resistance stronger → lean bearish intraday<br>
+        5. <strong>Put Wall closer</strong> to spot = downside support stronger → lean bullish intraday
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Manifold Regime (GEX tab) ───────────────────────────────────── -->
+  <div class="pb" style="margin-bottom:12px" id="gexManifoldPanel">
+    <div class="ph">
+      <span class="pt">🌀 Manifold Regime</span>
+      <span class="chip cm">Phase space + topology signal</span>
+    </div>
+    <div id="gexManifoldBody" style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding:8px 0">
+      <div class="ld"><div class="spin"></div></div>
+    </div>
+  </div>
+</div>
+
+
+<div class="pane" id="p-analysis-cockpit">
+  <div id="cockpitTickerRow" style="display:flex;gap:6px;flex-wrap:wrap;
+    padding:10px;background:var(--bg2);border-radius:7px;
+    margin-bottom:10px;border:1px solid var(--border)"></div>
+  <div id="cockpitBody"><div style="padding:30px;text-align:center;color:var(--sub);font-size:12px">Select a ticker above to load the cockpit.</div></div>
+</div>
+
+<div class="pane" id="p-analysis-physics" onshow="initManifold3dIfReady()">
+  <!-- Stock Rotation Analysis Header -->
+  <div style="margin-bottom:16px">
+    <div style="font-size:20px;font-weight:800;margin-bottom:4px">Stock Rotation Analysis</div>
+    <div style="font-size:11px;color:var(--sub)">Track where institutional money is flowing. Index → Sector → Stocks.</div>
+  </div>
+
+  <!-- Today's Rotation Summary -->
+  <div class="panel" style="margin-bottom:12px">
+    <div class="ph"><span class="pt">📊 Today's Rotation</span><span id="rotModeBadge" class="chip cm">—</span></div>
+    <div class="pb" id="rotationSummary"><div class="ld"><div class="spin"></div></div></div>
+  </div>
+
+  <!-- Market Overview -->
+  <div class="panel" style="margin-bottom:12px">
+    <div class="ph"><span class="pt">📈 Market Overview</span><span id="sTime" class="chip cm">—</span></div>
+    <div style="padding:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px" id="marketOverview">
+      <div class="ld" style="grid-column:1/-1"><div class="spin"></div></div>
+    </div>
+  </div>
+
+  <!-- Sector Rankings -->
+  <div class="panel" style="margin-bottom:12px">
+    <div class="ph">
+      <span class="pt">📋 Sector Rankings</span>
+      <div style="display:flex;gap:6px">
+        <span id="sLead" class="chip cg">— LEADING</span>
+        <span id="sLag"  class="chip cr">— LAGGING</span>
+      </div>
+    </div>
+    <table class="tbl">
+      <thead><tr><th>Rank</th><th>Sector</th><th>ETF</th><th>Score</th><th>1W</th><th>1M</th><th>Flow</th></tr></thead>
+      <tbody id="sTbl"><tr><td colspan="7"><div class="ld"><div class="spin"></div></div></td></tr></tbody>
+    </table>
+  </div>
+
+  <!-- Sector Flow Intelligence -->
+  <div class="panel" style="margin-bottom:12px">
+    <div class="ph"><span class="pt">⚡ Sector Flow Intelligence</span><span class="chip cg">Active</span></div>
+    <div style="padding:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px" id="sectorFlowGrid">
+      <div class="ld" style="grid-column:1/-1"><div class="spin"></div></div>
+    </div>
+  </div>
+
+  <!-- Compass + Stats -->
+  <div style="display:grid;grid-template-columns:auto 1fr;gap:12px;margin-bottom:12px;align-items:start">
+    <div class="panel" style="min-width:220px">
+      <div class="ph"><span class="pt">Rotation Compass</span></div>
+      <div class="pb" style="text-align:center">
+        <canvas id="rotCanvas" width="190" height="190" style="display:block;margin:0 auto"></canvas>
+        <div id="rotLabel" style="font-size:10px;color:var(--sub);margin-top:6px">—</div>
+      </div>
+    </div>
+    <div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px" id="physStats">
+        <div class="ld" style="grid-column:1/-1"><div class="spin"></div></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="pt">ARKA Sector Signal</span><span class="chip cb">TRADE GUIDANCE</span></div>
+        <div id="sectorSignal"><div class="ld"><div class="spin"></div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Trending Stocks Per Sector -->
+  <div class="panel" style="margin-bottom:12px">
+    <div class="ph">
+      <span class="pt">🔥 Trending Stocks by Sector</span>
+      <span class="chip cm">Top 5 sectors · live alpha vs ETF</span>
+    </div>
+    <div style="padding:10px" id="sectorTrending">
+      <div class="ld"><div class="spin"></div></div>
+    </div>
+  </div>
+
+  <!-- Sector Heat Tiles -->
+  <div class="panel" style="margin-bottom:12px">
+    <div class="ph"><span class="pt">Sector Heat Map</span></div>
+    <div style="padding:10px;display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:6px" id="sGrid">
+      <div class="ld" style="grid-column:1/-1"><div class="spin"></div></div>
+    </div>
+  </div>
+
+  <!-- Helix charts kept -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px">
+    <div class="panel"><div class="ph"><span class="pt">WARP</span></div><div style="padding:10px"><canvas id="warpCanvas" height="60" style="width:100%"></canvas><div id="warpVal" style="font-size:11px;color:var(--green);margin-top:4px">—</div></div></div>
+    <div class="panel"><div class="ph"><span class="pt">PHI</span></div><div style="padding:10px"><canvas id="phiCanvas" height="60" style="width:100%"></canvas><div id="phiVal" style="font-size:11px;color:var(--gold);margin-top:4px">—</div></div></div>
+    <div class="panel"><div class="ph"><span class="pt">RICCI</span></div><div style="padding:10px"><canvas id="ricciCanvas" height="60" style="width:100%"></canvas><div id="ricciVal" style="font-size:11px;color:var(--blue);margin-top:4px">—</div></div></div>
+    <div class="panel"><div class="ph"><span class="pt">KAPPA</span></div><div style="padding:10px"><canvas id="kappaCanvas" height="60" style="width:100%"></canvas><div id="kappaVal" style="font-size:11px;color:var(--purple);margin-top:4px">—</div></div></div>
+  </div>
+  <div class="panel">
+    <div class="ph"><span class="pt">5-Pillar Manifold</span><span class="chip cm">WARP · PHI · KAPPA · RICCI · SIGNAL</span></div>
+    <table class="tbl">
+      <thead><tr><th>TICKER</th><th>REGIME</th><th>WARP</th><th>PHI</th><th>KAPPA</th><th>RICCI</th><th>SIGNAL</th><th>SCORE</th></tr></thead>
+      <tbody id="manifoldTbody"><tr><td colspan="8"><div class="ld"><div class="spin"></div></div></td></tr></tbody>
+    </table>
+  </div>
+
+  <!-- ── Manifold 3D Geometry ─────────────────────────────────────────── -->
+  <!-- Ticker selector for Phase Space + Ricci + Manifold panels -->
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px" id="manifoldTickerRow">
+    <span style="font-size:9px;color:var(--sub);align-self:center;margin-right:4px">TICKER:</span>
+    <script>
+      window._manifoldActiveTicker = sessionStorage.getItem('manifoldTicker') || 'SPY';
+      (function(){
+        const tickers = ['SPY','QQQ','SPX','IWM','DIA','GLD','SLV'];
+        document.write(tickers.map(t =>
+          `<button id="mfBtn_${t}" onclick="selectManifoldTicker('${t}')"
+            style="font-size:9px;padding:3px 9px;border-radius:4px;cursor:pointer;border:1px solid var(--border);
+            background:${t==(sessionStorage.getItem('manifoldTicker')||'SPY')?'var(--blue)':'var(--bg3)'};
+            color:${t==(sessionStorage.getItem('manifoldTicker')||'SPY')?'#fff':'var(--sub)'};font-weight:600">${t}</button>`
+        ).join(''));
+      })();
+    </script>
+    <span id="viz3dStatus" class="chip cm" style="margin-left:auto">Live</span>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+    <div class="pb">
+      <div class="ph">
+        <span class="pt">🌀 Phase Space Geometry</span>
+      </div>
+      <canvas id="manifold3dCanvas" height="220"
+        style="width:100%;display:block;border-radius:6px;background:var(--bg3)"></canvas>
+      <div style="display:flex;gap:6px;margin-top:6px">
+        <button onclick="pauseManifold3d()"
+          style="font-size:9px;padding:3px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--sub);cursor:pointer">
+          ⏸ Pause</button>
+        <button onclick="resetManifold3d()"
+          style="font-size:9px;padding:3px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--sub);cursor:pointer">
+          🔄 Reset</button>
+      </div>
+    </div>
+    <div class="pb">
+      <div class="ph">
+        <span class="pt">〽️ Ricci Flow Curvature</span>
+        <span class="chip cm">Manifold curvature over time</span>
+      </div>
+      <canvas id="ricci3dCanvas" height="200"
+        style="width:100%;display:block;border-radius:6px;background:var(--bg3)"></canvas>
+    </div>
+  </div>
+  <!-- ── Manifold Conviction Modifier ─────────────────────────────────── -->
+  <div class="pb" style="margin-bottom:12px" id="manifoldModPanel">
+    <div class="ph">
+      <span class="pt">🧬 Manifold → ARKA Conviction Modifier</span>
+      <span class="chip cm">Live feed from manifold_engine.py</span>
+    </div>
+    <div id="manifoldModBody" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:8px 0">
+      <div class="ld"><div class="spin"></div></div>
+    </div>
+  </div>
+</div>
+
+
+<div class="pane" id="p-analysis-helx">
+  <div class="g2" style="margin-bottom:12px">
+    <div class="panel">
+      <div class="ph"><span class="pt">🧠 Neural Pulse</span><span class="chip cb" id="pulseLabel">—</span></div>
+      <div class="pb">
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:12px">
+          <div id="pulseScore" style="font-family:'JetBrains Mono',monospace;font-size:48px;font-weight:700;color:var(--gold)">—</div>
+          <div>
+            <div style="font-size:10px;color:var(--sub)">/ 100</div>
+            <div id="pulseTrend" style="font-size:11px;margin-top:4px;color:var(--sub)">—</div>
+            <div id="arkaThreshold" style="font-size:10px;color:var(--sub);margin-top:4px">ARKA Threshold: —</div>
+          </div>
+        </div>
+        <div style="height:48px;background:var(--bg3);border-radius:6px;overflow:hidden" id="pulseSparkWrap">
+          <canvas id="pulseSpark" style="width:100%;height:48px"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="ph"><span class="pt">⚡ Execution Gates</span><span class="chip" id="gatesOverall" style="background:rgba(99,102,241,0.1);color:var(--accent)">—</span></div>
+      <div class="pb" id="gatesBody" style="display:flex;flex-direction:column;gap:6px"><div class="ld"><div class="spin"></div></div></div>
+    </div>
+  </div>
+  <div class="g4" style="margin-bottom:12px" id="intCards"><div class="ld" style="grid-column:1/-1"><div class="spin"></div></div></div>
+  <div class="g2">
+    <div class="panel">
+      <div class="ph"><span class="pt">Market Signals</span></div>
+      <div class="pb" id="helxSignals" style="display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+    <div class="panel">
+      <div class="ph"><span class="pt">ARKA Modifier</span></div>
+      <div class="pb" id="intMod"><div class="ld"><div class="spin"></div></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="pane" id="p-analysis-head">
+  <!-- Regime Banner -->
+  <div id="headRegimeBanner" style="border-radius:8px;padding:12px 16px;margin-bottom:12px;background:var(--bg2);border:1px solid var(--bg3);display:flex;align-items:center;gap:12px">
+    <span id="headRegimeIcon" style="font-size:24px">⚪</span>
+    <div>
+      <div style="font-size:13px;font-weight:700;color:var(--fg)" id="headRegimeLabel">Loading regime…</div>
+      <div style="font-size:11px;color:var(--sub);margin-top:2px" id="headRegimeDesc"></div>
+    </div>
+    <div style="margin-left:auto;text-align:right">
+      <div style="font-size:10px;color:var(--sub)">Neural Pulse</div>
+      <div style="font-size:18px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--purple)" id="headPulse">—</div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:10px;color:var(--sub)">VIX</div>
+      <div style="font-size:18px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--gold)" id="headVix">—</div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+    <!-- Key Levels -->
+    <div class="panel">
+      <div class="ph"><span class="pt">GEX Key Levels</span></div>
+      <div class="pb" id="headLevels"><div class="ld"><div class="spin"></div></div></div>
+    </div>
+    <!-- Sector Flow -->
+    <div class="panel">
+      <div class="ph"><span class="pt">Sector Rotation</span></div>
+      <div class="pb" id="headSectors"><div class="ld"><div class="spin"></div></div></div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+    <!-- ARJUN Top Signals -->
+    <div class="panel">
+      <div class="ph"><span class="pt">ARJUN Top Signals</span></div>
+      <div class="pb" id="headArjunSignals"><div class="ld"><div class="spin"></div></div></div>
+    </div>
+    <!-- OI + Flow -->
+    <div class="panel">
+      <div class="ph"><span class="pt">Flow &amp; OI Signals</span></div>
+      <div class="pb" id="headFlowOI"><div class="ld"><div class="spin"></div></div></div>
+    </div>
+  </div>
+
+  <!-- Bias Summary -->
+  <div class="panel" style="margin-bottom:10px">
+    <div class="ph"><span class="pt">Market Bias</span></div>
+    <div class="pb" id="headBiasText" style="font-size:12px;color:var(--sub);line-height:1.6"></div>
+  </div>
+
+  <!-- Daily Schedule -->
+  <div class="panel">
+    <div class="ph"><span class="pt">Today's Schedule</span></div>
+    <div class="pb"><div id="scheduleTimeline"></div></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  function loadHeadTab(){
+    fetch('/api/weekly/brief').then(r=>r.json()).then(d=>{
+      if(d.error){document.getElementById('headRegimeLabel').textContent='Error: '+d.error;return;}
+
+      // Regime banner
+      const reg = d.regime || {};
+      document.getElementById('headRegimeIcon').textContent  = reg.icon  || '⚪';
+      document.getElementById('headRegimeLabel').textContent = reg.label || 'Unknown';
+      document.getElementById('headRegimeDesc').textContent  = reg.description || '';
+      if(reg.cliff_today){
+        document.getElementById('headRegimeBanner').style.borderColor='var(--red)';
+        document.getElementById('headRegimeDesc').textContent += ' ⚡ GEX CLIFF TODAY';
+      }
+      document.getElementById('headPulse').textContent = (d.neural_pulse||0)+'/100';
+      document.getElementById('headVix').textContent   = d.vix ? d.vix.toFixed(1) : '—';
+
+      // Key Levels
+      const lvlEl = document.getElementById('headLevels');
+      if(d.levels && d.levels.length){
+        const colorMap = {green:'var(--green)',yellow:'var(--gold)',red:'var(--red)'};
+        lvlEl.innerHTML = d.levels.map(l=>`
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--bg3)">
+            <span style="color:${colorMap[l.color]||'var(--sub)'};font-size:11px">${l.label}</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${colorMap[l.color]||'var(--fg)'}">\$${(+l.value).toFixed(2)}</span>
+          </div>`).join('');
+      } else { lvlEl.innerHTML='<span style="color:var(--sub);font-size:11px">No GEX data</span>'; }
+
+      // Sectors
+      const secEl = document.getElementById('headSectors');
+      const allSec = [...(d.top_sectors||[]), ...(d.weak_sectors||[])].slice(0,7);
+      if(allSec.length){
+        secEl.innerHTML = allSec.map(s=>{
+          const clr = s.chg_pct>0 ? 'var(--green)' : s.chg_pct<0 ? 'var(--red)' : 'var(--sub)';
+          return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--bg3)">
+            <span style="font-size:11px;color:var(--fg)">${s.etf}</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:${clr};font-weight:700">${s.chg_pct>0?'+':''}${s.chg_pct.toFixed(2)}%</span>
+          </div>`;
+        }).join('');
+      } else { secEl.innerHTML='<span style="color:var(--sub);font-size:11px">No sector data</span>'; }
+
+      // ARJUN signals
+      const arjEl = document.getElementById('headArjunSignals');
+      if(d.arjun_signals && d.arjun_signals.length){
+        arjEl.innerHTML = d.arjun_signals.slice(0,6).map(s=>{
+          const clr = s.signal==='BUY' ? 'var(--green)' : s.signal==='SELL' ? 'var(--red)' : 'var(--sub)';
+          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--bg3)">
+            <span style="font-size:12px;font-weight:600;color:var(--fg)">${s.ticker}</span>
+            <span style="color:${clr};font-size:11px;font-weight:700">${s.signal}</span>
+            <span style="color:var(--sub);font-size:10px">${(s.confidence*100).toFixed(0)}%</span>
+          </div>`;
+        }).join('');
+      } else { arjEl.innerHTML='<span style="color:var(--sub);font-size:11px">No ARJUN signals yet</span>'; }
+
+      // Flow + OI
+      const foEl = document.getElementById('headFlowOI');
+      const flowLines = (d.flow_signals||[]).map(f=>{
+        const clr = f.bias==='BULLISH' ? 'var(--green)' : 'var(--red)';
+        return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--bg3)">
+          <span style="font-size:11px;color:var(--fg)">${f.ticker} <span style="color:var(--sub)">Flow</span></span>
+          <span style="color:${clr};font-size:11px;font-weight:700">${f.bias}${f.is_extreme?' ⚡':''}</span>
+        </div>`;
+      });
+      const oiLines = (d.oi_signals||[]).map(o=>{
+        const clr = o.signal==='BULLISH' ? 'var(--green)' : 'var(--red)';
+        return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--bg3)">
+          <span style="font-size:11px;color:var(--fg)">${o.ticker} <span style="color:var(--sub)">OI</span></span>
+          <span style="color:${clr};font-size:11px;font-weight:700">${o.signal}</span>
+        </div>`;
+      });
+      foEl.innerHTML = [...flowLines, ...oiLines].join('') || '<span style="color:var(--sub);font-size:11px">No flow signals</span>';
+
+      // Bias text
+      document.getElementById('headBiasText').textContent = d.bias_text || '';
+
+      // Schedule
+      const schEl = document.getElementById('scheduleTimeline');
+      if(d.schedule){
+        schEl.innerHTML = d.schedule.map(e=>{
+          const tagClr = {ARKA:'var(--purple)',ARJUN:'var(--blue)',MARKET:'var(--gold)',LOTTO:'var(--green)',EOD:'var(--red)',RISK:'var(--sub)',TARAKA:'var(--teal)'};
+          const past = e.past;
+          return `<div style="display:flex;align-items:center;gap:10px;padding:6px 0;opacity:${past?'0.4':'1'};border-bottom:1px solid var(--bg3)">
+            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--sub);min-width:40px">${e.time}</span>
+            <span style="font-size:11px;color:var(--fg);flex:1">${e.label}</span>
+            <span style="font-size:9px;padding:2px 6px;border-radius:3px;background:var(--bg3);color:${tagClr[e.tag]||'var(--sub)'}">${e.tag}</span>
+          </div>`;
+        }).join('');
+      }
+    }).catch(e=>{ document.getElementById('headRegimeLabel').textContent='Failed to load'; });
+  }
+
+  // Load when Head subtab is activated
+  document.addEventListener('DOMContentLoaded', function(){
+    const origSetSub = window.setSub;
+    window._headLoaded = false;
+    document.addEventListener('click', function(ev){
+      if(ev.target && ev.target.dataset && ev.target.dataset.sub === 'head' && !window._headLoaded){
+        window._headLoaded = true;
+        loadHeadTab();
+      }
+    });
+    // Also refresh every 5 minutes if already on head tab
+    setInterval(function(){
+      if(document.getElementById('p-analysis-head') &&
+         document.getElementById('p-analysis-head').classList.contains('active')){
+        loadHeadTab();
+      }
+    }, 300000);
+  });
+})();
+</script>
+
+<!-- ════════════════ POWER HOUR ══════════════════════════ -->
+<div class="pane" id="p-power-lotto">
+
+  <!-- ── Hero zone ─────────────────────────────────────── -->
+  <div class="lotto-hero" id="lottoBadgeWrap">
+    <div class="lotto-scanline"></div>
+    <div class="lotto-eyebrow">⚡ NEURAL LOTTO ENGINE</div>
+    <div class="lotto-big-title">POWER HOUR</div>
+    <div class="lotto-sub-title">0DTE &middot; HERO OR ZERO &middot; 3:30–3:58 PM ET</div>
+
+    <!-- Status badge -->
+    <div class="lotto-badge-ring">
+      <div class="lotto-stat" id="lottoStatus">WAITING</div>
+    </div>
+
+    <!-- Countdown -->
+    <div class="lotto-cd-wrap">
+      <div class="lotto-cd-label">NEXT LOTTO WINDOW</div>
+      <div class="lotto-cd" id="lotto-countdown">calculating…</div>
+    </div>
+
+    <div class="ph-status" id="phStatus"></div>
+  </div>
+
+  <!-- ── Active trade card (shown when live) ───────────── -->
+  <div id="lottoLive" style="display:none" class="lotto-live-card">
+    <div class="lotto-live-hdr">
+      <span class="live-dot"></span>ACTIVE LOTTO TRADE
+      <button onclick="clearLottoState()" style="margin-left:auto;font-size:9px;padding:2px 8px;border-radius:4px;background:rgba(255,61,90,0.15);color:var(--red);border:1px solid rgba(255,61,90,0.3);cursor:pointer;letter-spacing:1px">✕ CLEAR</button>
+    </div>
+    <div class="lotto-live-grid">
+      <div class="lotto-live-cell">
+        <div class="lotto-live-lbl">CONTRACT</div>
+        <div class="mn lotto-live-val" id="lottoContract">—</div>
+      </div>
+      <div class="lotto-live-cell" style="background:rgba(255,215,0,0.06);border-color:rgba(255,215,0,0.2)">
+        <div class="lotto-live-lbl">ENTRY</div>
+        <div class="mn lotto-live-val" id="lottoEntry" style="color:var(--gold)">—</div>
+      </div>
+      <div class="lotto-live-cell" style="background:rgba(0,208,132,0.06);border-color:rgba(0,208,132,0.2)">
+        <div class="lotto-live-lbl">TARGET +100%</div>
+        <div class="mn lotto-live-val" id="lottoTarget" style="color:var(--green)">—</div>
+      </div>
+      <div class="lotto-live-cell" style="background:rgba(255,61,90,0.06);border-color:rgba(255,61,90,0.2)">
+        <div class="lotto-live-lbl">STOP -50%</div>
+        <div class="mn lotto-live-val" id="lottoStop" style="color:var(--red)">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Index signal cards (populated by JS) ──────────── -->
+  <div id="lottoIndexCards" style="margin-bottom:12px"></div>
+
+  <!-- ── Rules + today result ──────────────────────────── -->
+  <div class="g2" style="margin-bottom:12px">
+    <div class="panel">
+      <div class="ph"><span class="pt">Lotto Rules</span></div>
+      <div class="pb" style="font-size:11px;display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;justify-content:space-between"><span style="color:var(--sub)">Entry threshold</span><span class="mn c-go">conviction &ge;50</span></div>
+        <div style="display:flex;justify-content:space-between"><span style="color:var(--sub)">Max trades</span><span class="mn">1 per session</span></div>
+        <div style="display:flex;justify-content:space-between"><span style="color:var(--sub)">Take profit</span><span class="mn c-g">+100% (partial exit)</span></div>
+        <div style="display:flex;justify-content:space-between"><span style="color:var(--sub)">Stop loss</span><span class="mn c-r">-50%</span></div>
+        <div style="display:flex;justify-content:space-between"><span style="color:var(--sub)">Auto-close</span><span class="mn c-go">3:58 PM ET</span></div>
+        <div style="display:flex;justify-content:space-between"><span style="color:var(--sub)">Position limit</span><span class="mn">37.5% of BP</span></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="ph"><span class="pt">Today's Result</span></div>
+      <div class="pb" id="lottoResult"><div class="empty">No lotto trade yet today</div></div>
+    </div>
+  </div>
+
+  <!-- ── History ────────────────────────────────────────── -->
+  <div class="panel">
+    <div class="ph"><span class="pt">Lotto History</span></div>
+    <table class="tbl">
+      <thead><tr><th>Date</th><th>Ticker</th><th>Direction</th><th>Entry</th><th>Exit</th><th>P&amp;L%</th><th>Result</th></tr></thead>
+      <tbody id="lottoHistory"><tr><td colspan="7"><div class="empty">No history yet</div></td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ════════════════ HEAT SEEKER PANE ════════════════════ -->
+<div class="pane" id="p-heatseeker">
+  <!-- Header Controls -->
+  <div class="hs-header">
+    <div class="hs-title">🔥 HEAT SEEKER — Unusual Options Flow</div>
+    <div class="hs-controls">
+      <!-- Mode toggle -->
+      <div class="hs-mode-toggle">
+        <button class="hs-mode-btn active" id="hs-mode-scalp"
+                onclick="hsSetMode('scalp')">⚡ SCALP</button>
+        <button class="hs-mode-btn" id="hs-mode-swing"
+                onclick="hsSetMode('swing')">🌊 SWING</button>
+      </div>
+      <input type="text" id="hs-ticker-input" placeholder="Add ticker (e.g. NVDA)"
+             onkeydown="if(event.key==='Enter') hsAddTicker()" />
+      <button class="hs-btn-add" onclick="hsAddTicker()">+ ADD</button>
+      <button class="hs-btn-scan" onclick="hsRunScan()">⚡ SCAN NOW</button>
+      <span id="hs-scan-status" class="hs-status"></span>
+    </div>
+  </div>
+
+  <!-- Watchlist Pills -->
+  <div class="hs-watchlist-bar">
+    <span style="color:var(--gold);font-size:11px;margin-right:8px;">WATCHING:</span>
+    <div id="hs-watchlist-pills"></div>
+  </div>
+
+  <!-- Mode hint -->
+  <div id="hs-mode-hint" style="padding:4px 20px 6px;font-size:10px;color:var(--sub);letter-spacing:0.3px;">
+    ⚡ Scalp: SPY QQQ IWM — 0DTE/1DTE ATM sweeps only
+  </div>
+
+  <!-- Last scan timestamp -->
+  <div style="padding:4px 20px 10px;font-size:10px;color:var(--sub);">
+    <span id="hs-last-scan"></span>
+  </div>
+
+  
+  <!-- Flow Summary Panel -->
+  <div id="hs-summary-panel" style="
+      margin: 0 20px 14px;
+      border: 1px solid var(--border);
+      border-top: 2px solid var(--gold);
+      border-radius: 4px;
+      overflow: hidden;
+      background: var(--bg2);
+  ">
+    <div style="
+        padding: 5px 14px;
+        background: var(--bg3);
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    ">
+      <span style="color:var(--gold);font-size:10px;font-weight:bold;letter-spacing:1.5px;text-transform:uppercase;">
+        📊 Directional Flow Summary
+      </span>
+      <span id="hs-summary-time" style="color:var(--sub);font-size:10px;font-style:italic;"></span>
+    </div>
+    <div id="hs-summary-rows" style="padding:4px 0;">
+      <div style="color:var(--sub);font-size:11px;padding:8px 14px;">Run a scan to see directional bias per ticker</div>
+    </div>
+  </div>
+
+  <!-- Signals Table -->
+  <div class="hs-table-wrapper">
+    <table class="hs-table" id="hs-signals-table">
+      <thead>
+        <tr>
+          <th>TICKER</th><th>TYPE</th><th>STRIKE</th><th>EXPIRY</th>
+          <th id="hs-th-dte">DTE</th>
+          <th>VOLUME</th><th>VOL MULT</th><th>OI RATIO</th><th>PREMIUM</th>
+          <th>PRICE</th><th>IV%</th><th>DELTA</th><th>DIRECTION</th>
+          <th>BIAS</th><th>SCORE</th>
+        </tr>
+      </thead>
+      <tbody id="hs-signals-body">
+        <tr><td colspan="15" style="text-align:center;color:var(--sub);padding:40px;">
+          Click ⚡ SCAN NOW to detect unusual options flow
+        </td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ════════════════ SYSTEM PANES ════════════════════════ -->
+<div class="pane" id="p-system-overview">
+  <div id="engine-controls-container" style="margin-bottom:14px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      <button id="arkaStartBtn2" onclick="engineAction('start','arka')" style="background:rgba(0,208,132,0.1);color:var(--green);border:1px solid rgba(0,208,132,0.3);border-radius:4px;padding:5px 12px;cursor:pointer;font-size:11px;font-family:'JetBrains Mono',monospace">▶ Start ARKA</button>
+      <button id="arkaStopBtn2"  onclick="engineAction('stop','arka')"  style="background:rgba(255,61,90,0.1);color:var(--red);border:1px solid rgba(255,61,90,0.3);border-radius:4px;padding:5px 12px;cursor:pointer;font-size:11px;font-family:'JetBrains Mono',monospace">■ Stop ARKA</button>
+      <button onclick="engineAction('start','internals')" style="background:rgba(0,208,132,0.1);color:var(--green);border:1px solid rgba(0,208,132,0.3);border-radius:4px;padding:5px 12px;cursor:pointer;font-size:11px;font-family:'JetBrains Mono',monospace">▶ Start Internals</button>
+      <button onclick="engineAction('start','all')" style="background:rgba(61,142,255,0.1);color:var(--blue);border:1px solid rgba(61,142,255,0.3);border-radius:4px;padding:5px 12px;cursor:pointer;font-size:11px;font-family:'JetBrains Mono',monospace">⚡ Start All</button>
+    </div>
+    <div id="engine-status-grid"></div>
+  </div>
+  <div id="sysAlerts" style="margin-bottom:12px"></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
+    <div class="panel" style="padding:14px 16px">
+      <div style="font-size:10px;letter-spacing:2px;color:var(--sub);margin-bottom:10px">ARKA ENGINE</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span id="sysArkaStatus" style="font-size:18px;font-weight:700;color:var(--green)">—</span>
+        <span id="sysArkaBadge" class="chip" style="font-size:10px">—</span>
+      </div>
+      <div style="font-size:11px;color:var(--sub)" id="sysArkaConv">Conviction: — / —</div>
+      <div style="font-size:11px;color:var(--sub)" id="sysArkaTrades">Trades today: —</div>
+      <div style="font-size:11px;color:var(--sub)" id="sysArkaSession">Session: —</div>
+    </div>
+    <div class="panel" style="padding:14px 16px">
+      <div style="font-size:10px;letter-spacing:2px;color:var(--sub);margin-bottom:10px">ARJUN AGENTS</div>
+      <div style="margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px">
+          <span style="color:#4ade80">Bull</span><span id="sysBull" style="color:#4ade80;font-weight:700">—</span>
+        </div>
+        <div style="background:var(--bg3);border-radius:3px;height:5px;overflow:hidden">
+          <div id="sysBullBar" style="height:100%;background:#4ade80;width:0%;transition:width 0.5s"></div>
+        </div>
+      </div>
+      <div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px">
+          <span style="color:#f87171">Bear</span><span id="sysBear" style="color:#f87171;font-weight:700">—</span>
+        </div>
+        <div style="background:var(--bg3);border-radius:3px;height:5px;overflow:hidden">
+          <div id="sysBearBar" style="height:100%;background:#f87171;width:0%;transition:width 0.5s"></div>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--sub);margin-top:8px" id="sysArjunMode">Mode: —</div>
+    </div>
+    <div class="panel" style="padding:14px 16px">
+      <div style="font-size:10px;letter-spacing:2px;color:var(--sub);margin-bottom:10px">MARKET INTERNALS</div>
+      <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:4px">
+        <span style="font-size:24px;font-weight:700" id="sysNeuralScore">—</span>
+        <span style="font-size:11px;color:var(--sub)">Neural Pulse</span>
+      </div>
+      <div style="font-size:11px;margin-bottom:4px"><span style="color:var(--sub)">VIX: </span><span id="sysVix" style="font-weight:600">—</span> <span id="sysVixReg" style="color:var(--sub);font-size:10px">—</span></div>
+      <div style="font-size:11px;margin-bottom:4px"><span style="color:var(--sub)">Risk: </span><span id="sysRisk" style="font-weight:600">—</span></div>
+      <div style="font-size:11px"><span style="color:var(--sub)">HMM: </span><span id="sysHmm" style="font-weight:600">—</span></div>
+    </div>
+  </div>
+  <div class="panel" style="padding:14px 16px;margin-bottom:12px">
+    <div style="font-size:10px;letter-spacing:2px;color:var(--sub);margin-bottom:10px">ENGINE STATUS</div>
+    <div id="sysEngineRows" style="display:grid;grid-template-columns:1fr 1fr;gap:6px 24px"></div>
+  </div>
+  <div class="panel" style="padding:14px 16px;margin-bottom:12px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div style="font-size:10px;letter-spacing:2px;color:var(--sub)">MODULE CACHE HEALTH</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span id="sysCacheOverall" style="font-size:10px;font-weight:700;font-family:'JetBrains Mono',monospace;padding:2px 8px;border-radius:4px">—</span>
+        <span id="sysCacheChecked" style="font-size:10px;color:var(--sub)">—</span>
+      </div>
+    </div>
+    <div id="sysCacheGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:6px 24px"></div>
+  </div>
+  <div class="panel" style="padding:14px 16px">
+    <div style="font-size:10px;letter-spacing:2px;color:var(--sub);margin-bottom:10px">PORTFOLIO SNAPSHOT</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+      <div><div style="font-size:10px;color:var(--sub)">Portfolio Value</div><div style="font-size:18px;font-weight:700;color:var(--green)" id="sysPortfolio">—</div></div>
+      <div><div style="font-size:10px;color:var(--sub)">Cash</div><div style="font-size:18px;font-weight:700" id="sysCash">—</div></div>
+      <div><div style="font-size:10px;color:var(--sub)">Today P&L</div><div style="font-size:18px;font-weight:700" id="sysPnl">—</div></div>
+      <div><div style="font-size:10px;color:var(--sub)">Open Positions</div><div style="font-size:18px;font-weight:700" id="sysPositions">—</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="pane" id="p-system-modules">
+  <div class="panel" style="padding:14px 16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div style="font-size:10px;letter-spacing:2px;color:var(--sub)">POWER INTELLIGENCE MODULES — LIVE READINGS</div>
+      <div style="display:flex;gap:6px">
+        <button id="moduleRefreshBtn" onclick="refreshModules(false)"
+          style="font-size:9px;padding:3px 8px;border-radius:4px;cursor:pointer;border:1px solid var(--border);background:var(--bg3);color:var(--sub);font-family:'JetBrains Mono',monospace">↺ Refresh</button>
+        <button id="moduleForceBtn" onclick="refreshModules(true)"
+          style="font-size:9px;padding:3px 8px;border-radius:4px;cursor:pointer;border:1px solid var(--border);background:var(--bg3);color:var(--gold);font-family:'JetBrains Mono',monospace">⚡ Force</button>
+      </div>
+    </div>
+    <div id="sysModuleGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px"></div>
+  </div>
+</div>
+
+<div class="pane" id="p-system-crons">
+  <div class="panel" style="padding:14px 16px">
+    <div style="font-size:10px;letter-spacing:2px;color:var(--sub);margin-bottom:12px">CRON SCHEDULE & STATUS</div>
+    <table class="tbl">
+      <thead><tr><th>Time</th><th>Job</th><th>Status</th><th>Last Log</th></tr></thead>
+      <tbody id="sysCronBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="pane" id="p-system-pipeline">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div class="panel" style="padding:14px 16px">
+      <div style="font-size:10px;letter-spacing:2px;color:var(--sub);margin-bottom:12px">✅ COMPLETE</div>
+      <div id="sysDoneList"></div>
+    </div>
+    <div class="panel" style="padding:14px 16px">
+      <div style="font-size:10px;letter-spacing:2px;color:var(--sub);margin-bottom:12px">📋 PIPELINE</div>
+      <div id="sysTodoList"></div>
+    </div>
+  </div>
+</div>
+
+    </div><!-- /scrollArea -->
+  </div><!-- /mainContent -->
+</div><!-- /appShell -->
+
+<!-- ━━ SETTINGS PANEL ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+<div id="sOverlay" onclick="closeS()"></div>
+<div id="sPanel">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+    <div>
+      <div style="font-family:'Cinzel',serif;font-size:13px;font-weight:700;letter-spacing:2px">SETTINGS</div>
+      <div style="font-size:7px;color:var(--sub);letter-spacing:1.5px;margin-top:2px;text-transform:uppercase">CHAKRA Configuration</div>
+    </div>
+    <button onclick="closeS()" style="background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:4px 10px;cursor:pointer;color:var(--sub)">✕</button>
+  </div>
+  <div class="ss"><div class="ss-title">Arjun Watchlist</div>
+    <div id="aTList" style="margin-bottom:7px"></div>
+    <div style="display:flex;gap:6px">
+      <input id="nTicker" class="sinput" placeholder="e.g. NVDA" maxlength="6" style="text-transform:uppercase;height:30px" onkeydown="if(event.key==='Enter')addT()">
+      <button onclick="addT()" style="padding:5px 12px;background:var(--accent);color:#fff;border:none;border-radius:5px;cursor:pointer;font-weight:700">+</button>
+    </div>
+  </div>
+  <div class="ss"><div class="ss-title">Sector ETFs</div><div id="sTglList"></div></div>
+  <div class="ss"><div class="ss-title">Index ETFs</div><div id="iTglList"></div></div>
+  <div class="ss"><div class="ss-title">Auto-Refresh Interval</div>
+    <select id="refreshInterval" class="sinput" onchange="setRefreshInterval(this.value)" style="height:30px">
+      <option value="30">30 seconds</option>
+      <option value="60" selected>1 minute</option>
+      <option value="300">5 minutes</option>
+    </select>
+  </div>
+  <button class="sbtn" onclick="saveS()">SAVE & APPLY</button>
+  <div id="savedMsg" style="text-align:center;color:var(--green);font-size:10px;margin-top:6px;opacity:0;transition:opacity .3s">✓ Settings saved</div>
+</div>
+
+<div id="toast"></div>
+
+<!-- ━━ SCRIPTS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+<!-- Load order matters: core first, then feature modules -->
+<script src="/static/js/arka.js"></script>
+<script src="/static/js/core.js"></script>
+<script src="/static/js/arjun.js"></script>
+<script src="/static/js/analysis.js"></script>
+<script src="/static/js/physics.js"></script>
+<script src="/static/js/taraka.js"></script>
+<script src="/static/js/system.js"></script>
+
+
+<script>
+// ============================================================
+// GEX RANGE LEVELS — Call Wall / Zero Gamma / Put Wall panel
+// ============================================================
+async function updateGexRangeLevels(ticker) {
+  ticker = (ticker || 'SPY').toUpperCase();
+  try {
+    const r   = await fetch(`/api/options/gex/intraday?ticker=${ticker}`);
+    const d   = await r.json();
+    const pts = d.data || [];
+    if (!pts.length) return;
+    const last = pts[pts.length - 1];
+
+    const spot      = parseFloat(last.spot       || 0);
+    const callWall  = parseFloat(last.call_wall  || 0);
+    const putWall   = parseFloat(last.put_wall   || 0);
+    const zeroGamma = parseFloat(last.zero_gamma || 0);
+    const regime    = last.regime      || '';
+    const regimeCall= last.regime_call || '';
+    const cliff     = !!last.cliff_today;
+
+    const pct = (a, b) => b > 0 ? ((a - b) / b * 100).toFixed(2) : '—';
+
+    // Call Wall
+    const cwEl = document.getElementById('gexCallWall');
+    const cwDist = document.getElementById('gexCallWallDist');
+    if (cwEl) cwEl.textContent = callWall > 0 ? '$' + callWall.toFixed(2) : '—';
+    if (cwDist && callWall > 0 && spot > 0) {
+      const d = pct(callWall, spot);
+      cwDist.textContent = `${d > 0 ? '+' : ''}${d}% away`;
+    }
+
+    // Zero Gamma
+    const zgEl = document.getElementById('gexZeroGamma');
+    const zgPos = document.getElementById('gexZeroGammaPos');
+    if (zgEl) zgEl.textContent = zeroGamma > 0 ? '$' + zeroGamma.toFixed(2) : '—';
+    if (zgPos && zeroGamma > 0 && spot > 0) {
+      const above = spot >= zeroGamma;
+      zgPos.textContent = above ? '▲ ABOVE' : '▼ BELOW';
+      zgPos.style.color = above ? 'var(--green)' : 'var(--red)';
+    }
+
+    // Put Wall
+    const pwEl = document.getElementById('gexPutWall');
+    const pwDist = document.getElementById('gexPutWallDist');
+    if (pwEl) pwEl.textContent = putWall > 0 ? '$' + putWall.toFixed(2) : '—';
+    if (pwDist && putWall > 0 && spot > 0) {
+      const d = pct(spot, putWall);
+      pwDist.textContent = `${d > 0 ? '+' : ''}${d}% away`;
+    }
+
+    // Regime badge
+    const rb = document.getElementById('gexRegimeBadge');
+    if (rb && regime) {
+      const colors = {
+        POSITIVE_GAMMA: { bg: 'rgba(0,208,132,0.15)', color: 'var(--green)', text: 'POS γ' },
+        NEGATIVE_GAMMA: { bg: 'rgba(255,61,90,0.15)',  color: 'var(--red)',   text: 'NEG γ' },
+        LOW_VOL:        { bg: 'rgba(255,204,0,0.12)',  color: 'var(--gold)',  text: 'LOW VOL' },
+      };
+      const s = colors[regime] || { bg: 'var(--bg3)', color: 'var(--sub)', text: regime };
+      rb.style.background = s.bg;
+      rb.style.color = s.color;
+      rb.textContent = s.text;
+    }
+
+    // Regime call badge (SHORT_THE_POPS / BUY_THE_DIPS / FOLLOW_MOMENTUM)
+    const rcb = document.getElementById('gexRegimeCallBadge');
+    if (rcb && regimeCall) {
+      const rcMap = {
+        SHORT_THE_POPS:   { text: '📉 Short Pops',   color: 'var(--red)' },
+        BUY_THE_DIPS:     { text: '📈 Buy Dips',     color: 'var(--green)' },
+        FOLLOW_MOMENTUM:  { text: '⚡ Follow Momo',  color: 'var(--purple)' },
+      };
+      const rc = rcMap[regimeCall] || { text: regimeCall, color: 'var(--sub)' };
+      rcb.textContent = rc.text;
+      rcb.style.color = rc.color;
+      rcb.style.background = 'var(--bg3)';
+    }
+
+    // Cliff badge
+    const cb = document.getElementById('gexCliffBadge');
+    if (cb) cb.style.display = cliff ? 'block' : 'none';
+
+  } catch(e) {
+    console.warn('updateGexRangeLevels:', e);
+  }
+}
+
+// Auto-load on GEX tab open and refresh every 2 min
+(function() {
+  const _origSetSub = window.setSub;
+  if (typeof _origSetSub === 'function') {
+    window.setSub = function(s) {
+      _origSetSub.apply(this, arguments);
+      if (s === 'gex') {
+        const t = (typeof _gexActiveTicker !== 'undefined' ? _gexActiveTicker : null) || 'SPY';
+        updateGexRangeLevels(t);
+      }
+    };
+  }
+  setInterval(() => {
+    const active = document.querySelector('.pane#p-analysis-gex.active');
+    if (active) {
+      const t = (typeof _gexActiveTicker !== 'undefined' ? _gexActiveTicker : null) || 'SPY';
+      updateGexRangeLevels(t);
+    }
+  }, 120000);
+})();
+
+// ============================================================
+// GEX TAB — CHAKRA Full Redraw  (patched by chakra_gex_patcher)
+// ============================================================
+function renderGexTab(data) {
+  const container = document.getElementById('gex-tab-content');
+  if (!container) return;
+  const strikes   = data?.top_strikes  || [];
+  const heatmap   = data?.heatmap       || {};
+  const spot      = data?.spot_price    || null;
+  const callWall  = data?.call_wall     || null;
+  const putWall   = data?.put_wall      || null;
+  const zeroGamma = data?.zero_gamma    || null;
+  const expLabel  = data?.expiry_label  || 'ALL EXPIRATIONS';
+  container.innerHTML = '<div style="display:flex;gap:16px;height:100%;min-height:520px;">'
+    + '<div style="flex:1.4;background:#111318;border:1px solid #1e2330;border-radius:8px;padding:16px;display:flex;flex-direction:column;">'
+    +   '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">'
+    +     '<span style="font-size:11px;font-weight:600;color:#8892a4;letter-spacing:.08em;">&#128202; GEX BY STRIKE</span>'
+    +     '<span style="font-size:10px;background:#1a2035;color:#4fc3f7;padding:3px 8px;border-radius:4px;border:1px solid #1e3050;">' + expLabel + '</span>'
+    +   '</div>'
+    +   '<div id="gex-strike-chart" style="flex:1;overflow-y:auto;"></div>'
+    + '</div>'
+    + '<div style="flex:1;background:#111318;border:1px solid #1e2330;border-radius:8px;padding:16px;display:flex;flex-direction:column;">'
+    +   '<div style="margin-bottom:12px;">'
+    +     '<span style="font-size:11px;font-weight:600;color:#8892a4;letter-spacing:.08em;">&#128293; GEX HEATMAP</span>'
+    +     '<div style="font-size:10px;color:#555f70;margin-top:2px;">Color intensity = GEX magnitude per strike x expiry</div>'
+    +   '</div>'
+    +   '<div id="gex-heatmap-chart" style="flex:1;overflow:auto;"></div>'
+    + '</div>'
+    + '</div>';
+  _drawStrikeChart(strikes, spot, callWall, putWall, zeroGamma);
+  _drawHeatmap(heatmap, spot);
+}
+
+function _drawStrikeChart(strikes, spot, callWall, putWall, zeroGamma) {
+  const el = document.getElementById('gex-strike-chart');
+  if (!el || !strikes.length) {
+    if(el) el.innerHTML = '<div style="color:#555;font-size:12px;padding:20px;text-align:center;">No strike data</div>';
+    return;
+  }
+  const maxAbs = Math.max(...strikes.map(s => Math.abs(s.gex || 0))) || 1;
+  let rows = '';
+  strikes.forEach(function(s) {
+    const gex      = s.gex || 0;
+    const pct      = Math.abs(gex) / maxAbs * 100;
+    const isPos    = gex >= 0;
+    const barColor = isPos ? '#00c076' : '#ff4757';
+    const fmt      = _fmtGex(gex);
+    let badge = '';
+    if (callWall  && s.strike === callWall)  badge = '<span style="background:#1a3a2a;color:#00c076;font-size:9px;padding:1px 5px;border-radius:3px;margin-left:4px;">C-WALL</span>';
+    if (putWall   && s.strike === putWall)   badge = '<span style="background:#3a1a1a;color:#ff4757;font-size:9px;padding:1px 5px;border-radius:3px;margin-left:4px;">P-WALL</span>';
+    if (zeroGamma && s.strike === zeroGamma) badge = '<span style="background:#2a2a1a;color:#ffd32a;font-size:9px;padding:1px 5px;border-radius:3px;margin-left:4px;">ZG</span>';
+    const isSpot   = spot && Math.abs(s.strike - spot) < 2.5;
+    const dotColor = isSpot ? '#ff9f43' : (isPos ? '#00c076' : '#ff4757');
+    const rowBg    = isSpot ? 'rgba(255,159,67,0.06)' : 'transparent';
+    rows += '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid #151820;background:' + rowBg + ';">'
+      + '<div style="width:62px;text-align:right;font-size:11px;font-weight:600;color:' + (isSpot?'#ff9f43':'#c8d0dc') + ';flex-shrink:0;">'
+      +   s.strike.toLocaleString() + badge
+      + '</div>'
+      + '<div style="flex:1;position:relative;height:16px;background:#1a1f2b;border-radius:3px;overflow:hidden;">'
+      +   '<div style="position:absolute;left:0;top:0;height:100%;width:' + pct.toFixed(1) + '%;background:' + barColor + ';opacity:0.75;border-radius:3px;"></div>'
+      +   (isSpot ? '<div style="position:absolute;left:0;top:0;width:3px;height:100%;background:#ff9f43;"></div>' : '')
+      + '</div>'
+      + '<div style="display:flex;align-items:center;gap:5px;width:76px;flex-shrink:0;">'
+      +   '<div style="width:9px;height:9px;border-radius:50%;background:' + dotColor + ';flex-shrink:0;"></div>'
+      +   '<span style="font-size:11px;color:' + (isPos?'#00c076':'#ff4757') + ';font-weight:500;">' + fmt + '</span>'
+      + '</div>'
+      + '</div>';
+  });
+  rows += '<div style="display:flex;gap:12px;margin-top:10px;padding-top:8px;border-top:1px solid #1e2330;flex-wrap:wrap;">'
+    + '<span style="font-size:10px;color:#8892a4;"><span style="display:inline-block;width:8px;height:8px;background:#00c076;border-radius:50%;margin-right:3px;"></span>+GEX (pins price)</span>'
+    + '<span style="font-size:10px;color:#8892a4;"><span style="display:inline-block;width:8px;height:8px;background:#ff4757;border-radius:50%;margin-right:3px;"></span>-GEX (accelerates price)</span>'
+    + (spot ? '<span style="font-size:10px;color:#ff9f43;">&#9679; Spot ~ ' + spot.toLocaleString() + '</span>' : '')
+    + '</div>';
+  el.innerHTML = rows;
+}
+
+function _drawHeatmap(heatmap, spot) {
+  const el = document.getElementById('gex-heatmap-chart');
+  if (!el) return;
+  const hStrikes  = heatmap && heatmap.strikes  || [];
+  const hExpiries = heatmap && heatmap.expiries || [];
+  const callGex   = heatmap && heatmap.call_gex || [];
+  const putGex    = heatmap && heatmap.put_gex  || [];
+  if (!hStrikes.length || !hExpiries.length) {
+    el.innerHTML = '<div style="color:#555;font-size:11px;text-align:center;padding:30px 10px;">No heatmap grid data yet.<br><span style="font-size:10px;color:#444;">Backend needs heatmap.strikes / expiries / call_gex[][] / put_gex[][]</span></div>';
+    return;
+  }
+  const allVals = callGex.concat(putGex).reduce(function(a,r){return a.concat(r);},[]).map(Math.abs);
+  const maxVal  = Math.max.apply(null, allVals) || 1;
+  const colW    = Math.max(44, Math.floor(460 / hStrikes.length));
+  function hdr() {
+    return hStrikes.map(function(s){
+      const isSp = spot && Math.abs(s-spot)<2.5;
+      return '<th style="min-width:'+colW+'px;font-size:9px;color:'+(isSp?'#ff9f43':'#8892a4')+';text-align:center;padding:2px 1px;border-bottom:1px solid #1e2330;">'+s+(isSp?'<br><span style="font-size:8px;">&#9650; spot</span>':'')+'</th>';
+    }).join('');
+  }
+  function buildRows(matrix, type) {
+    return hExpiries.map(function(exp,ei){
+      const cells = hStrikes.map(function(s,si){
+        const v   = (matrix[ei]||[])[si]||0;
+        const pct = Math.abs(v)/maxVal;
+        const isSp= spot && Math.abs(s-spot)<2.5;
+        const bg  = type==='CALL' ? 'rgba(0,192,118,'+(pct*0.85).toFixed(2)+')' : 'rgba(255,71,87,'+(pct*0.85).toFixed(2)+')';
+        return '<td style="min-width:'+colW+'px;height:22px;background:'+bg+';text-align:center;font-size:9px;color:'+(pct>0.3?'#fff':'#666')+';border:1px solid #0d1117;'+(isSp?'border-left:2px solid #ff9f43;border-right:2px solid #ff9f43;':'')+'">'+(v?_fmtGex(v,true):'')+'</td>';
+      }).join('');
+      return '<tr><td style="font-size:9px;color:#8892a4;white-space:nowrap;padding:0 6px;min-width:48px;">'+exp+'</td>'+cells+'</tr>';
+    }).join('');
+  }
+  el.innerHTML =
+    '<table style="border-collapse:collapse;width:100%;font-size:10px;"><thead><tr>'
+    + '<th style="font-size:9px;color:#4fc3f7;text-align:left;padding:4px 6px;">&#8593; CALL GEX</th>'+hdr()
+    + '</tr></thead><tbody>'+buildRows(callGex,'CALL')+'</tbody></table>'
+    + '<div style="margin:6px 0;border-top:2px dashed #1e2330;"></div>'
+    + '<table style="border-collapse:collapse;width:100%;font-size:10px;"><thead><tr>'
+    + '<th style="font-size:9px;color:#ff4757;text-align:left;padding:4px 6px;">&#8595; PUT GEX</th>'+hdr()
+    + '</tr></thead><tbody>'+buildRows(putGex,'PUT')+'</tbody></table>';
+}
+
+function _fmtGex(v, compact) {
+  const abs=Math.abs(v), sign=v>=0?'+':'-';
+  if(abs>=1e9) return sign+(abs/1e9).toFixed(1)+'B';
+  if(abs>=1e6) return sign+(abs/1e6).toFixed(compact?0:1)+'M';
+  if(abs>=1e3) return sign+(abs/1e3).toFixed(compact?0:1)+'K';
+  return sign+abs.toFixed(0);
+}
+// ============================================================
+// END GEX PATCH
+// ============================================================
+</script>
+<script src="/static/js/heat_seeker.js"></script>
+</body>
+</html>
+

@@ -1,0 +1,65 @@
+# Python
+venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Environment / secrets
+.env
+*.env
+.env.*
+
+# Logs
+logs/
+nohup.out
+*.log
+
+# Data / databases
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# ML models (large binaries — tracked separately if needed)
+backend/arjun/models/*.json
+models/
+
+# Backups and scratch
+*backup*
+archive/
+*.zip
+*.bak
+*.bak.*
+frontend_v1_backup_*/
+backend/arjun_backup_*/
+
+# One-off patch scripts (applied, no longer needed)
+patch_*.py
+fix_manifold*.py
+patchsession*.py
+test_notifications.py
+discord_cli.py
+
+# OS
+.DS_Store
+.DS_Store?
+**/.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Jupyter
+.ipynb_checkpoints/
+
+# GEX state files (runtime-generated)
+logs/gex/

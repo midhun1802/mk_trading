@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Beast AI — Status Tracker</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #080c10;
+    color: #c8d8e8;
+    font-family: 'Space Mono', 'Courier New', monospace;
+    min-height: 100vh;
+    padding: 24px;
+  }
+
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,255,136,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,255,136,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; }
+
+  /* Header */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 28px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid rgba(0,255,136,0.2);
+  }
+  .logo { font-size: 22px; font-weight: 700; color: #00ff88; letter-spacing: 2px; }
+  .logo span { color: #c8d8e8; }
+  .live-badge {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(0,255,136,0.1);
+    border: 1px solid rgba(0,255,136,0.3);
+    padding: 6px 14px; border-radius: 20px;
+    font-size: 12px; color: #00ff88;
+  }
+  .pulse {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #00ff88;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.8); }
+  }
+
+  /* Progress bar */
+  .progress-section {
+    background: rgba(0,255,136,0.05);
+    border: 1px solid rgba(0,255,136,0.2);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 24px;
+  }
+  .progress-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 12px;
+  }
+  .progress-title { font-size: 13px; color: #00ff88; letter-spacing: 1px; }
+  .progress-day { font-size: 28px; font-weight: 700; color: #fff; }
+  .progress-bar-bg {
+    background: rgba(255,255,255,0.08);
+    border-radius: 6px; height: 10px; overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%; border-radius: 6px;
+    background: linear-gradient(90deg, #00ff88, #00cc66);
+    transition: width 0.6s ease;
+  }
+  .progress-labels {
+    display: flex; justify-content: space-between;
+    margin-top: 6px; font-size: 11px; color: #556677;
+  }
+
+  /* Stats row */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .stat-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .stat-label { font-size: 10px; color: #556677; letter-spacing: 1px; margin-bottom: 6px; }
+  .stat-value { font-size: 22px; font-weight: 700; }
+  .stat-sub { font-size: 11px; color: #556677; margin-top: 4px; }
+  .green { color: #00ff88; }
+  .red { color: #ff4466; }
+  .yellow { color: #ffcc00; }
+  .white { color: #fff; }
+
+  /* Section title */
+  .section-title {
+    font-size: 11px; letter-spacing: 2px; color: #556677;
+    margin-bottom: 14px; text-transform: uppercase;
+  }
+
+  /* Scorecard table */
+  .scorecard {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 24px;
+  }
+  .scorecard-header {
+    background: rgba(0,255,136,0.06);
+    padding: 14px 20px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .scorecard-title { font-size: 13px; color: #00ff88; }
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    padding: 10px 16px; text-align: left;
+    font-size: 10px; letter-spacing: 1px; color: #556677;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  td {
+    padding: 12px 16px;
+    font-size: 13px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+  .week-current td { background: rgba(0,255,136,0.04); }
+  .badge {
+    display: inline-block;
+    padding: 2px 10px; border-radius: 12px;
+    font-size: 11px; font-weight: 600;
+  }
+  .badge-pending { background: rgba(255,204,0,0.15); color: #ffcc00; }
+  .badge-pass { background: rgba(0,255,136,0.15); color: #00ff88; }
+  .badge-fail { background: rgba(255,68,102,0.15); color: #ff4466; }
+
+  /* Two col layout */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+
+  /* Model cards */
+  .model-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .model-card {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px; padding: 12px 14px;
+  }
+  .model-ticker { font-size: 15px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+  .model-acc { font-size: 12px; }
+  .model-bar-bg { background: rgba(255,255,255,0.08); border-radius: 4px; height: 4px; margin-top: 8px; }
+  .model-bar-fill { height: 100%; border-radius: 4px; background: #00ff88; }
+
+  /* Training timeline */
+  .timeline { padding: 4px 0; }
+  .timeline-item {
+    display: flex; align-items: flex-start; gap: 14px;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .timeline-item:last-child { border-bottom: none; }
+  .timeline-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    margin-top: 4px; flex-shrink: 0;
+  }
+  .dot-done { background: #00ff88; }
+  .dot-next { background: #ffcc00; }
+  .dot-future { background: #334455; }
+  .timeline-text { font-size: 12px; line-height: 1.6; }
+  .timeline-label { color: #556677; font-size: 10px; margin-bottom: 2px; }
+
+  /* Next steps */
+  .next-steps {
+    background: rgba(255,204,0,0.04);
+    border: 1px solid rgba(255,204,0,0.2);
+    border-radius: 12px; padding: 20px 24px;
+    margin-bottom: 24px;
+  }
+  .next-steps .section-title { color: #ffcc00; }
+  .step-item {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .step-item:last-child { border-bottom: none; }
+  .step-num {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: rgba(255,204,0,0.15); color: #ffcc00;
+    font-size: 11px; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; margin-top: 1px;
+  }
+  .step-text { font-size: 12px; line-height: 1.6; }
+  .step-when { font-size: 10px; color: #556677; margin-top: 2px; }
+
+  /* Footer */
+  .footer {
+    text-align: center; font-size: 11px; color: #334455;
+    padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.05);
+  }
+
+  .panel {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px; padding: 20px;
+  }
+  .panel-title {
+    font-size: 11px; letter-spacing: 2px; color: #556677;
+    margin-bottom: 14px; text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="logo">BEAST <span>AI</span></div>
+    <div class="live-badge">
+      <div class="pulse"></div>
+      PAPER TRADING LIVE
+    </div>
+  </div>
+
+  <!-- 30-Day Progress -->
+  <div class="progress-section">
+    <div class="progress-header">
+      <div class="progress-title">30-DAY VALIDATION PROGRESS</div>
+      <div class="progress-day">Day <span id="current-day">5</span> <span style="font-size:14px;color:#556677">/ 30</span></div>
+    </div>
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="progress-fill" style="width: 16.6%"></div>
+    </div>
+    <div class="progress-labels">
+      <span>Feb 24, 2026</span>
+      <span id="days-remaining">25 trading days remaining</span>
+      <span>Mar 24, 2026</span>
+    </div>
+  </div>
+
+  <!-- Stats Row -->
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-label">PAPER PORTFOLIO</div>
+      <div class="stat-value white">$99,287</div>
+      <div class="stat-sub">Alpaca paper account</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">TRADES EXECUTED</div>
+      <div class="stat-value yellow">0</div>
+      <div class="stat-sub">0 BUY signals fired</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">AVG CONFIDENCE</div>
+      <div class="stat-value green">60%</div>
+      <div class="stat-sub">Today: SPY 65%, QQQ 64%</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">BACKTEST TARGET</div>
+      <div class="stat-value green">77.2%</div>
+      <div class="stat-sub">Win rate to validate</div>
+    </div>
+  </div>
+
+  <!-- Scorecard -->
+  <div class="scorecard">
+    <div class="scorecard-header">
+      <div class="scorecard-title">📊 30-DAY SCORECARD</div>
+      <div style="font-size:11px;color:#556677">Update weekly</div>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>WEEK</th>
+          <th>DATES</th>
+          <th>BUY SIGNALS</th>
+          <th>TRADES</th>
+          <th>WINNERS</th>
+          <th>LOSERS</th>
+          <th>NOTES</th>
+          <th>STATUS</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="week-current">
+          <td style="color:#00ff88;font-weight:700">Week 1</td>
+          <td style="color:#556677">Feb 24–28</td>
+          <td>0</td>
+          <td>0</td>
+          <td>—</td>
+          <td>—</td>
+          <td style="color:#556677;font-size:11px">All HOLDs, conf 52–65%</td>
+          <td><span class="badge badge-pending">IN PROGRESS</span></td>
+        </tr>
+        <tr>
+          <td style="color:#334455">Week 2</td>
+          <td style="color:#334455">Mar 3–7</td>
+          <td style="color:#334455">—</td>
+          <td style="color:#334455">—</td>
+          <td style="color:#334455">—</td>
+          <td style="color:#334455">—</td>
+          <td style="color:#334455">—</td>
+          <td><span class="badge badge-pending" style="opacity:0.3">WAITING</span></td>
+        </tr>
+        <tr>
+          <td style="color:#334455">Week 3</td>
+          <td style="color:#334455">Mar 10–14</td>
+          <td style="color:#334455">—</td>
+          <td style="color:#334455">—</td>
+          <td style="color:#334455">—</td>
+          <td style="color:#334455">—</td>
+          <td style="color:#334455">—</td>
+          <td><span class="badge badge-pending" style="opacity:0.3">WAITING</span></td>
+        </tr>
+        <tr>
+          <td style="color:#334455">Week 4</td>
+          <td style="color:#334455">Mar 17–21</td>
+          <td style="color:#334455">—</td>
+          <td style="color:#334455">—</td>
+          <td style="color:#334455">—</td>
+          <td style="color:#334455">—</td>
+          <td style="color:#334455">—</td>
+          <td><span class="badge badge-pending" style="opacity:0.3">WAITING</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Two col: Models + Training -->
+  <div class="two-col">
+
+    <!-- Model Status -->
+    <div class="panel">
+      <div class="panel-title">🧠 AI Models — Frozen (trained once)</div>
+      <div class="model-grid">
+        <div class="model-card">
+          <div class="model-ticker">SPY</div>
+          <div class="model-acc green">61.1%</div>
+          <div class="model-bar-bg"><div class="model-bar-fill" style="width:61.1%"></div></div>
+        </div>
+        <div class="model-card">
+          <div class="model-ticker">QQQ</div>
+          <div class="model-acc green">59.9%</div>
+          <div class="model-bar-bg"><div class="model-bar-fill" style="width:59.9%"></div></div>
+        </div>
+        <div class="model-card">
+          <div class="model-ticker">IWM</div>
+          <div class="model-acc green">60.9%</div>
+          <div class="model-bar-bg"><div class="model-bar-fill" style="width:60.9%"></div></div>
+        </div>
+        <div class="model-card">
+          <div class="model-ticker">XLK</div>
+          <div class="model-acc green">60.4%</div>
+          <div class="model-bar-bg"><div class="model-bar-fill" style="width:60.4%"></div></div>
+        </div>
+        <div class="model-card">
+          <div class="model-ticker">XLF</div>
+          <div class="model-acc green">61.6%</div>
+          <div class="model-bar-bg"><div class="model-bar-fill" style="width:61.6%"></div></div>
+        </div>
+        <div class="model-card">
+          <div class="model-ticker">XLE</div>
+          <div class="model-acc green">59.4%</div>
+          <div class="model-bar-bg"><div class="model-bar-fill" style="width:59.4%"></div></div>
+        </div>
+      </div>
+      <div style="margin-top:14px;font-size:11px;color:#556677;line-height:1.7">
+        Models trained on 5 years of historical data.<br>
+        Will retrain after 30-day validation with fresh data.<br>
+        Target after retrain: <span class="green">≥63% accuracy</span>
+      </div>
+    </div>
+
+    <!-- Training Roadmap -->
+    <div class="panel">
+      <div class="panel-title">📈 Training Roadmap</div>
+      <div class="timeline">
+        <div class="timeline-item">
+          <div class="timeline-dot dot-done"></div>
+          <div class="timeline-text">
+            <div class="timeline-label">DONE — Day 3</div>
+            Initial training on 5 years historical data (30k bars). XGBoost, 60.6% avg accuracy.
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-dot dot-done"></div>
+          <div class="timeline-text">
+            <div class="timeline-label">DONE — Day 4</div>
+            Backtest validation. +163.9% avg return, 77.2% win rate, 1.12 Sharpe.
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-dot dot-next"></div>
+          <div class="timeline-text">
+            <div class="timeline-label">NOW — Days 5–30</div>
+            Paper trading. Collecting live signal data. Model frozen — just predicting.
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-dot dot-future"></div>
+          <div class="timeline-text">
+            <div class="timeline-label">AFTER DAY 30</div>
+            Retrain with fresh data + paper trade results. Add feedback loop. Target ≥63%.
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-dot dot-future"></div>
+          <div class="timeline-text">
+            <div class="timeline-label">PHASE 2 — Month 2</div>
+            Add Beast signal engine (ORB, discomfort index). Confluence scoring. Expand to swings.
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-dot dot-future"></div>
+          <div class="timeline-text">
+            <div class="timeline-label">PHASE 3 — Month 3+</div>
+            Continuous learning. Model improves from every trade. Full George-style system.
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Next Steps -->
+  <div class="next-steps">
+    <div class="section-title">⚡ Next Steps — In Order</div>
+    <div class="step-item">
+      <div class="step-num">1</div>
+      <div class="step-text">
+        Set up cron job so signals run automatically at 8AM Central every weekday
+        <div class="step-when">TODAY — run: <code style="color:#ffcc00">crontab -e</code></div>
+      </div>
+    </div>
+    <div class="step-item">
+      <div class="step-num">2</div>
+      <div class="step-text">
+        Monitor daily — check cron log, review signals, update scorecard weekly
+        <div class="step-when">EVERY WEEKDAY — run: <code style="color:#ffcc00">cat ~/trading-ai/logs/cron.log | tail -20</code></div>
+      </div>
+    </div>
+    <div class="step-item">
+      <div class="step-num">3</div>
+      <div class="step-text">
+        After 30 days — review scorecard. If win rate ≥60%, consider going live with small real money
+        <div class="step-when">~MARCH 24, 2026</div>
+      </div>
+    </div>
+    <div class="step-item">
+      <div class="step-num">4</div>
+      <div class="step-text">
+        Retrain models with fresh data + feedback loop. Upgrade Polygon to Options Advanced
+        <div class="step-when">AFTER VALIDATION PASSES</div>
+      </div>
+    </div>
+    <div class="step-item">
+      <div class="step-num">5</div>
+      <div class="step-text">
+        Merge Beast signal engine. Add confluence scoring. Expand to swing stocks (no ticker limits)
+        <div class="step-when">PHASE 2 — MONTH 2</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pass Criteria -->
+  <div class="panel" style="margin-bottom:24px">
+    <div class="panel-title">✅ Pass Criteria — To Move To Live Trading</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:4px">
+      <div style="text-align:center;padding:14px;background:rgba(0,255,136,0.05);border-radius:8px;border:1px solid rgba(0,255,136,0.15)">
+        <div style="font-size:24px;font-weight:700;color:#00ff88">≥60%</div>
+        <div style="font-size:11px;color:#556677;margin-top:4px">Win rate on paper trades</div>
+      </div>
+      <div style="text-align:center;padding:14px;background:rgba(255,68,102,0.05);border-radius:8px;border:1px solid rgba(255,68,102,0.15)">
+        <div style="font-size:24px;font-weight:700;color:#ff4466">&lt;25%</div>
+        <div style="font-size:11px;color:#556677;margin-top:4px">Max drawdown allowed</div>
+      </div>
+      <div style="text-align:center;padding:14px;background:rgba(0,136,255,0.05);border-radius:8px;border:1px solid rgba(0,136,255,0.15)">
+        <div style="font-size:24px;font-weight:700;color:#0088ff">30</div>
+        <div style="font-size:11px;color:#556677;margin-top:4px">Days running without errors</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    Beast AI — Status Tracker &nbsp;·&nbsp; Last updated: Day 5, Feb 25 2026 &nbsp;·&nbsp; Paper trading only — not financial advice
+  </div>
+
+</div>
+</body>
+</html>

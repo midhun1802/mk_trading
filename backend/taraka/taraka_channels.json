@@ -1,0 +1,17 @@
+{
+  "chChannels": [
+    { "name": "arka-signals",   "id": "1477297456545796128", "active": true },
+    { "name": "arka-extreme",   "id": "1483969942935044267", "active": true },
+    { "name": "chakra-signals", "id": "1478124867713765468", "active": true },
+    { "name": "high_stakes",    "id": "1480690163637026876", "active": true }
+  ],
+  "watch_all": false,
+  "log_unmatched": true,
+  "active_ids": [
+    "1477297456545796128",
+    "1483969942935044267",
+    "1478124867713765468",
+    "1480690163637026876"
+  ],
+  "updated_at": "2026-03-19T22:00:00Z"
+}

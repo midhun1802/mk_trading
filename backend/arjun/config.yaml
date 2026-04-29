@@ -1,0 +1,64 @@
+version: "2.0"
+
+agents:
+  analyst:
+    enabled: true
+    model_path: backend/arjun/models/xgboost_model.pkl
+  bull:
+    enabled: true
+    base_score: 50
+    weights:
+      technical: 0.4
+      dark_pool: 0.3
+      sentiment: 0.3
+  bear:
+    enabled: true
+    base_score: 50
+    weights:
+      technical: 0.4
+      risk_factors: 0.4
+      gex: 0.2
+  risk_manager:
+    enabled: true
+    max_position_size: 0.02
+    gex_negative_gamma_multiplier: 0.5
+    curvature_threshold_high: 0.5
+    curvature_threshold_moderate: 0.2
+
+data_sources:
+  polygon:
+    enabled: true
+    api_key: ${POLYGON_API_KEY}
+  unusual_whales:
+    enabled: false
+    api_key: ${UNUSUAL_WHALES_KEY}
+  trading_economics:
+    enabled: false
+    api_key: ${TRADING_ECONOMICS_KEY}
+
+features:
+  multi_agent:        true
+  gex_analysis:       true
+  dark_pool:          true
+  news_sentiment:     true
+  macro_calendar:     false
+  manifold_learning:  false
+  curvature_risk:     false
+  continuous_learning: false
+
+learning:
+  enabled: false
+  retrain_frequency: weekly
+  min_samples_for_retrain: 50
+  performance_db_path: logs/arjun_performance.db
+
+alerts:
+  discord_webhook: ${DISCORD_TRADES_WEBHOOK}
+  alert_on_low_win_rate: true
+  win_rate_threshold: 0.70
+  alert_on_data_source_failure: true
+
+websocket:
+  websocket_arka: true
+  stream_tickers: ["SPY", "QQQ", "IWM", "SPX"]
+  reconnect_on_failure: true

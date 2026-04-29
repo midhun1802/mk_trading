@@ -1,0 +1,4 @@
+{
+  "tickers": ["SPY", "QQQ", "IWM", "DIA", "NVDA", "AAPL", "TSLA", "AMZN", "META", "MSFT"],
+  "note": "Add/remove tickers here. ARJUN will use this list on next run at 8am ET."
+}
