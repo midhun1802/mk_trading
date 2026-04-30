@@ -1439,6 +1439,13 @@ if __name__ == "__main__":
 
     if args.watch:
         log.info("Flow monitor watching — every 5 min...")
+        # Post startup notification so we know when it (re)starts
+        try:
+            _hurl = DISCORD_HEALTH or DISCORD_ALERTS
+            if _hurl:
+                requests.post(_hurl, json={"embeds": [{"title": "✅ Flow Monitor Started", "description": "CHAKRA flow monitor (re)started — scanning every 5 min.", "color": 0x00cc66}]}, timeout=4)
+        except Exception:
+            pass
         while True:
             try:
                 run_flow_scan()

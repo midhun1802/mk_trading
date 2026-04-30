@@ -199,6 +199,29 @@ def _get_option_price(contract_sym: str, ticker: str, spot: float = 0) -> float 
                         return round(price, 3)
     except Exception as e:
         log.debug(f"  option price fetch failed ({contract_sym}): {e}")
+
+    # Fallback: Alpaca data API latest quote (works even if Polygon snapshot is stale/missing)
+    try:
+        _alp_r = httpx.get(
+            "https://data.alpaca.markets/v1beta1/options/quotes/latest",
+            params={"symbols": contract_sym},
+            headers={"APCA-API-KEY-ID": ALPACA_KEY, "APCA-API-SECRET-KEY": ALPACA_SECRET},
+            timeout=5,
+        )
+        if _alp_r.status_code == 200:
+            _q = _alp_r.json().get("quotes", {}).get(contract_sym, {})
+            _bid = float(_q.get("bp", 0) or 0)
+            _ask = float(_q.get("ap", 0) or 0)
+            if _ask > 0:
+                _price = round((_bid + _ask) / 2, 3) if _bid > 0 else round(_ask, 3)
+                if spot > 0 and _price > spot * 0.20:
+                    log.warning(f"  🚫 Price sanity FAIL (alpaca): {contract_sym} ${_price:.2f}")
+                    return None
+                log.debug(f"  Alpaca quote fallback: {contract_sym} bid={_bid} ask={_ask} → ${_price:.3f}")
+                return _price
+    except Exception as _ae:
+        log.debug(f"  Alpaca quote fallback failed ({contract_sym}): {_ae}")
+
     return None
 
 
