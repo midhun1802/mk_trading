@@ -74,7 +74,7 @@ SL_PCT           = 0.20   # -20% stop loss on premium (1:1 ratio, break-even at 
 MAX_POSITIONS    = 2      # max concurrent flow scalp positions
 MAX_PREMIUM      = 8.00   # $800/contract hard ceiling (handles high-IV morning entries for SPY/QQQ)
 MAX_PREMIUM_PCT  = 0.02   # also reject if premium > 2% of underlying (stale data check)
-MIN_PREMIUM      = 0.50   # $50/contract minimum — filter out lottery tickets (<$0.50 = no edge)
+MIN_PREMIUM      = 0.20   # $20/contract minimum — filter out near-zero lottery tickets
 EOD_HOUR         = 15     # 3pm ET
 EOD_MINUTE       = 58     # 3:58pm exit
 
@@ -89,12 +89,33 @@ SCAN_INTERVAL    = 30     # seconds between scans
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _load_state() -> dict:
+    state = {"positions": {}, "acted_keys": [], "daily_date": "", "daily_trades": 0}
     if STATE_FILE.exists():
         try:
-            return json.loads(STATE_FILE.read_text())
+            state = json.loads(STATE_FILE.read_text())
         except Exception:
             pass
-    return {"positions": {}, "acted_keys": [], "daily_date": "", "daily_trades": 0}
+
+    # Evict positions that Alpaca no longer holds (expired, filled, or closed overnight)
+    if state.get("positions"):
+        try:
+            _r = httpx.get(
+                f"{ALPACA_BASE}/v2/positions",
+                headers={"APCA-API-KEY-ID": ALPACA_KEY, "APCA-API-SECRET-KEY": ALPACA_SECRET},
+                timeout=5,
+            )
+            if _r.status_code == 200:
+                live_syms = {p["symbol"] for p in _r.json()}
+                stale = [s for s in state["positions"] if s not in live_syms]
+                for s in stale:
+                    log.info(f"  🧹 Evicting stale position {s} — not in Alpaca (expired/closed)")
+                    del state["positions"][s]
+                if stale:
+                    _save_state(state)
+        except Exception as _e:
+            log.debug(f"  State eviction check failed: {_e}")
+
+    return state
 
 
 def _save_state(state: dict):
@@ -243,8 +264,9 @@ def _find_0dte_contract(ticker: str, direction: str, spot: float) -> dict | None
     today   = date.today().isoformat()
     tmrw    = (date.today() + timedelta(days=1)).isoformat()
 
-    # Try 0DTE first, then 1DTE
-    for exp in [today, tmrw]:
+    # Use 1DTE first to avoid PDT rule (paper account <$25K — same-day open+close = day trade)
+    # 0DTE fallback only if 1DTE unavailable
+    for exp in [tmrw, today]:
         try:
             # Calls: search ATM→OTM only (spot to spot+3%)
             # Puts:  search OTM→ATM only (spot-3% to spot)
@@ -356,7 +378,14 @@ def _place_order(contract_sym: str, qty: int, side: str,
             return {"success": True, "order_id": result.get("id", ""), "qty": qty}
         else:
             log.error(f"  ❌ Order failed {r.status_code}: {r.text[:100]}")
-            return {"success": False, "error": r.text[:100]}
+            err_text = r.text
+            if r.status_code == 403 and "day trade" in err_text.lower() and DISCORD_WH:
+                try:
+                    import requests as _req
+                    _req.post(DISCORD_WH, json={"embeds": [{"title": "⛔ PDT Block — Flow Scalper", "description": f"**{contract_sym}** {side.upper()} rejected by Alpaca PDT rule.\nAll new entries blocked today. Resets Monday.\n\nAction: No manual intervention needed — will resume Monday.", "color": 0xff4400}]}, timeout=4)
+                except Exception:
+                    pass
+            return {"success": False, "error": err_text[:100]}
     except Exception as e:
         log.error(f"  ❌ Order exception: {e}")
         return {"success": False, "error": str(e)}
@@ -727,24 +756,26 @@ class FlowScalper:
             if entered >= slots:
                 break
 
-            # Check signal freshness: must be from today AND within last 10 minutes
+            # Check signal freshness: must be from today AND within last 60 minutes
+            # (flow_monitor scans every 5 min; signals are written once on detection
+            #  and don't refresh until the next event — 10 min was too tight)
             _sig_ts_raw = sig.get("timestamp", "")
-            _skip_stale = True  # default: reject if we can't parse timestamp
             if _sig_ts_raw:
                 try:
-                    # Also reject signals not from today (catches month-old cache entries)
                     if str(date.today()) not in _sig_ts_raw[:10]:
                         log.debug(f"  {ticker}: signal from {_sig_ts_raw[:10]} — not today, skip")
                         continue
                     sig_ts = datetime.fromisoformat(_sig_ts_raw)
                     age_min = (datetime.now() - sig_ts.replace(tzinfo=None)).total_seconds() / 60
-                    if age_min > 10:
+                    if age_min > 60:
                         log.debug(f"  {ticker}: signal {age_min:.1f}min old — skip")
                         continue
-                    _skip_stale = False
                 except Exception as _e:
                     log.debug(f"  {ticker}: ts parse error ({_e}) — skipping")
-            if _skip_stale:
+                    continue
+            else:
+                # No timestamp at all — skip to avoid acting on unknown-age signal
+                log.debug(f"  {ticker}: no timestamp — skip")
                 continue
 
             should_enter, reason = self._should_enter(ticker, sig)
