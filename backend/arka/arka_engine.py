@@ -3093,18 +3093,24 @@ class ARKAEngine:
                     model         = self.scalp_model,
                 )
                 if _scalp_win_prob is not None:
-                    # Hard block: ML win prob < 40% → no trade, regardless of direction or score
-                    # The score=0 (STRONG_SHORT) clamp prevents the soft penalty from ever firing
-                    # on extreme bearish signals, so this hard gate is necessary.
-                    if _scalp_win_prob < 0.40:
-                        cv["should_trade"] = False
-                        cv["direction"]    = "FLAT"
-                        log.info(
-                            f"  🚫 ML HARD BLOCK: {ticker} WIN={_scalp_win_prob:.0%} < 40% — FLAT regardless of conviction"
-                        )
                     # For flow-driven signals (flo≥60), halve the ML penalty —
                     # institutional flow supersedes a model trained on limited data
                     _flow_driven = abs(cv.get("components", {}).get("flow_discord", 0)) >= 60
+                    # Hard block: ML win prob < 25% → no trade (lowered from 40% —
+                    # model returns 8% default for out-of-distribution tickers like IWM/DIA/COIN,
+                    # so 40% was incorrectly blocking valid flow-driven trades)
+                    # Exception: high-confidence flow signals (flo≥80) bypass the ML block entirely
+                    _flow_extreme = abs(cv.get("components", {}).get("flow_discord", 0)) >= 80
+                    if _scalp_win_prob < 0.25 and not _flow_extreme:
+                        cv["should_trade"] = False
+                        cv["direction"]    = "FLAT"
+                        log.info(
+                            f"  🚫 ML HARD BLOCK: {ticker} WIN={_scalp_win_prob:.0%} < 25% — FLAT regardless of conviction"
+                        )
+                    elif _scalp_win_prob < 0.25 and _flow_extreme:
+                        log.info(
+                            f"  ⚡ ML BLOCK BYPASSED: {ticker} WIN={_scalp_win_prob:.0%} but flow extreme — flow overrides model"
+                        )
                     _ml_penalty_scale = 0.5 if _flow_driven else 1.0
                     if _scalp_win_prob < 0.35:
                         _scalp_adj = int(-15 * _ml_penalty_scale)
@@ -3557,6 +3563,30 @@ class ARKAEngine:
                 timeout=8
             )
             _contracts = _r.json().get("option_contracts", [])
+
+            # Fallback: if target DTE window has no contracts (weekend/holiday gap),
+            # try the next available expiry within 7 days
+            if not _contracts:
+                _fallback_max = (_date.today() + _td(days=7)).isoformat()
+                log.info(f"  📋 No contracts for {_exp_min}→{_exp_max}, trying wider window up to {_fallback_max}")
+                _r2 = _hx.get(
+                    f"{ALPACA_BASE}/v2/options/contracts",
+                    headers=self.alpaca.headers,
+                    params={
+                        "underlying_symbols":  trade_sym,
+                        "type":                _direction,
+                        "expiration_date_gte": _exp_min,
+                        "expiration_date_lte": _fallback_max,
+                        "strike_price_gte":    _strike_lo,
+                        "strike_price_lte":    _strike_hi,
+                        "limit":               20,
+                    },
+                    timeout=8
+                )
+                _contracts = _r2.json().get("option_contracts", [])
+                if _contracts:
+                    log.info(f"  📋 Fallback found {len(_contracts)} contracts")
+
             if _contracts:
                 # Sort by soonest expiry first, then closest to 1% OTM target
                 _contracts.sort(key=lambda c: (
